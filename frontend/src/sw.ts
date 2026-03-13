@@ -21,7 +21,7 @@ self.addEventListener('push', (event) => {
 
   const data = event.data.json();
   const title = data.title || 'TaskPulse';
-  const options: NotificationOptions = {
+  const options = {
     body: data.body || '',
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
@@ -29,7 +29,7 @@ self.addEventListener('push', (event) => {
     vibrate: [200, 100, 200],
     tag: 'taskpulse-deadline',
     renotify: true,
-  };
+  } as NotificationOptions;
 
   event.waitUntil(self.registration.showNotification(title, options));
 });

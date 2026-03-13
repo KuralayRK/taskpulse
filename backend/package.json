@@ -3,10 +3,10 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "npx tsx prisma/seed.ts"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",

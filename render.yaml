@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: taskpulse
+    runtime: node
+    plan: free
+    buildCommand: npm run setup && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_PASSWORD
+        value: admin
+      - key: DATABASE_URL
+        value: file:./dev.db

@@ -10,10 +10,20 @@ router.get('/tasks', async (_req, res) => {
       include: {
         assignee: true,
         _count: { select: { comments: true } },
+        comments: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { content: true, authorName: true, createdAt: true },
+        },
       },
       orderBy: { deadline: 'asc' },
     });
-    res.json(tasks);
+    const shaped = tasks.map((t) => ({
+      ...t,
+      lastComment: t.comments[0] || null,
+      comments: undefined,
+    }));
+    res.json(shaped);
   } catch (e) {
     res.status(500).json({ error: 'Failed to fetch tasks' });
   }
@@ -32,6 +42,30 @@ router.get('/tasks/:id', async (req, res) => {
     res.json(task);
   } catch (e) {
     res.status(500).json({ error: 'Failed to fetch task' });
+  }
+});
+
+router.put('/tasks/:id', async (req, res) => {
+  try {
+    const task = await prisma.task.findUnique({ where: { id: Number(req.params.id) } });
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+
+    const data: Record<string, unknown> = {};
+    const { title, description, deadline, status, priority } = req.body;
+    if (title !== undefined) data.title = title;
+    if (description !== undefined) data.description = description;
+    if (deadline !== undefined) data.deadline = new Date(deadline);
+    if (status !== undefined) data.status = status;
+    if (priority !== undefined) data.priority = priority;
+
+    const updated = await prisma.task.update({
+      where: { id: Number(req.params.id) },
+      data,
+      include: { assignee: true, comments: { orderBy: { createdAt: 'asc' } } },
+    });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to update task' });
   }
 });
 

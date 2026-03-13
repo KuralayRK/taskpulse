@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { tasksRouter } from './routes/tasks.js';
 import { adminRouter } from './routes/admin.js';
+// import { pushRouter } from './routes/push.js';
+// import { setupNotifications } from './notifications.js';
 
 dotenv.config();
 
@@ -18,6 +20,7 @@ app.use(express.json());
 
 app.use('/api', tasksRouter);
 app.use('/api/admin', adminRouter);
+// app.use('/api', pushRouter);
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Not found' });
@@ -31,4 +34,5 @@ app.get('*', (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`TaskPulse → http://localhost:${PORT}`);
+  // setupNotifications();
 });

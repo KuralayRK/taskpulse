@@ -17,6 +17,7 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   _count?: { comments: number };
+  lastComment?: { content: string; authorName: string; createdAt: string } | null;
   comments?: Comment[];
 }
 

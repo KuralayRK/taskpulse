@@ -159,12 +159,30 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-lg font-bold text-gray-900">Админка</h1>
-        <button onClick={handleLogout} className="text-sm text-gray-400 hover:text-gray-600">
-          Выйти
-        </button>
-      </div>
+      {(() => {
+        const userName = localStorage.getItem('tp_user_name') || '';
+        return userName ? (
+          <div className="flex items-center gap-3 mb-4 bg-white border border-gray-100 rounded-2xl px-4 py-3 shadow-sm">
+            <span className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold">
+              {userName[0]}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900 truncate">{userName}</p>
+              <p className="text-xs text-gray-400">Управление</p>
+            </div>
+            <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-gray-600 shrink-0">
+              Выйти
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-lg font-bold text-gray-900">Управление</h1>
+            <button onClick={handleLogout} className="text-sm text-gray-400 hover:text-gray-600">
+              Выйти
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1">

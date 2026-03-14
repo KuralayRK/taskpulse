@@ -130,7 +130,7 @@ export default function TaskPage() {
       <div className="max-w-2xl mx-auto px-4 py-8 text-center">
         <span className="text-4xl">🔍</span>
         <p className="text-gray-500 mt-3">Задача не найдена</p>
-        <Link to="/" className="text-indigo-600 hover:underline mt-2 inline-block">
+        <Link to="/board" className="text-indigo-600 hover:underline mt-2 inline-block">
           ← На доску
         </Link>
       </div>
@@ -143,7 +143,7 @@ export default function TaskPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
-      <Link to="/" className="text-sm text-indigo-600 hover:underline mb-4 inline-flex items-center gap-1">
+      <Link to="/board" className="text-sm text-indigo-600 hover:underline mb-4 inline-flex items-center gap-1">
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
           <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
         </svg>
@@ -326,7 +326,7 @@ export default function TaskPage() {
         ) : (
           <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-center">
             <p className="text-gray-500 text-sm mb-2">Чтобы комментировать, представьтесь</p>
-            <Link to="/" className="text-indigo-600 text-sm font-medium hover:underline">
+            <Link to="/board" className="text-indigo-600 text-sm font-medium hover:underline">
               Перейти на доску →
             </Link>
           </div>

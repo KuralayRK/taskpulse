@@ -117,7 +117,22 @@ export default function DashboardPage() {
     <div className="max-w-3xl mx-auto">
       {/* Hero */}
       <div className="bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-900 text-white px-5 pt-8 pb-6 rounded-b-3xl shadow-xl">
-        <p className="text-sm text-slate-400 mb-1">Панель управления</p>
+        {(() => {
+          const userName = localStorage.getItem('tp_user_name') || '';
+          const hour = new Date().getHours();
+          const greet = hour < 6 ? '🌙 Доброй ночи' : hour < 12 ? '☀️ Доброе утро' : hour < 18 ? '👋 Добрый день' : '🌆 Добрый вечер';
+          return userName ? (
+            <div className="flex items-center gap-3 mb-4">
+              <span className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-lg font-bold">
+                {userName[0]}
+              </span>
+              <div>
+                <p className="text-xs text-slate-400">{greet}</p>
+                <p className="text-sm font-semibold">{userName}</p>
+              </div>
+            </div>
+          ) : null;
+        })()}
         <h1 className="text-xl font-bold mb-5">
           {overdue.length > 0 ? '🔥 Есть горящие задачи' : '✅ Всё под контролем'}
         </h1>

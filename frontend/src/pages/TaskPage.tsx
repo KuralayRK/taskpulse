@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../api';
-import type { Task } from '../types';
+import type { Task, Person } from '../types';
 
 const priorityLabel: Record<string, string> = {
   critical: 'Критичный',
@@ -33,6 +33,9 @@ type EditingField = 'title' | 'description' | 'deadline' | 'status' | null;
 
 export default function TaskPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const backTo = (location.state as { from?: string })?.from || '/board';
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState('');
@@ -41,6 +44,9 @@ export default function TaskPage() {
   const [editingField, setEditingField] = useState<EditingField>(null);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null);
+  const [editingAssignees, setEditingAssignees] = useState(false);
+  const [allPeople, setAllPeople] = useState<Person[]>([]);
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<number[]>([]);
 
   const userName = localStorage.getItem('tp_user_name') || '';
 
@@ -67,7 +73,7 @@ export default function TaskPage() {
     switch (field) {
       case 'title': setEditValue(task.title); break;
       case 'description': setEditValue(task.description || ''); break;
-      case 'deadline': setEditValue(task.deadline.slice(0, 10)); break;
+      case 'deadline': setEditValue(task.deadline ? task.deadline.slice(0, 10) : ''); break;
       case 'status': setEditValue(task.status); break;
     }
     setEditingField(field);
@@ -85,8 +91,7 @@ export default function TaskPage() {
         data.description = editValue.trim() || null;
         break;
       case 'deadline':
-        if (!editValue) { cancelEdit(); return; }
-        data.deadline = editValue;
+        data.deadline = editValue || null;
         break;
       case 'status':
         data.status = editValue;
@@ -130,28 +135,28 @@ export default function TaskPage() {
       <div className="max-w-2xl mx-auto px-4 py-8 text-center">
         <span className="text-4xl">🔍</span>
         <p className="text-gray-500 mt-3">Задача не найдена</p>
-        <Link to="/board" className="text-indigo-600 hover:underline mt-2 inline-block">
-          ← На доску
-        </Link>
+        <button onClick={() => navigate(backTo)} className="text-indigo-600 hover:underline mt-2 inline-block">
+          ← Назад
+        </button>
       </div>
     );
   }
 
-  const deadlineDate = new Date(task.deadline);
+  const hasDeadline = !!task.deadline;
+  const deadlineDate = hasDeadline ? new Date(task.deadline!) : null;
   const now = new Date();
-  const isOverdue = deadlineDate < now && task.status !== 'done';
+  const isOverdue = deadlineDate ? deadlineDate < now && task.status !== 'done' : false;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
-      <Link to="/board" className="text-sm text-indigo-600 hover:underline mb-4 inline-flex items-center gap-1">
+      <button onClick={() => navigate(backTo)} className="text-sm text-indigo-600 hover:underline mb-4 inline-flex items-center gap-1">
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
           <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
         </svg>
         Назад
-      </Link>
+      </button>
 
       <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-        {/* Title — inline editable */}
         {editingField === 'title' ? (
           <input
             ref={inputRef as React.RefObject<HTMLInputElement>}
@@ -171,7 +176,6 @@ export default function TaskPage() {
           </h1>
         )}
 
-        {/* Description — inline editable */}
         {editingField === 'description' ? (
           <textarea
             ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -192,7 +196,6 @@ export default function TaskPage() {
           </p>
         )}
 
-        {/* Status & Priority badges */}
         <div className="flex flex-wrap gap-2 mb-4">
           {editingField === 'status' ? (
             <select
@@ -217,21 +220,88 @@ export default function TaskPage() {
           <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${priorityStyle[task.priority]}`}>
             {priorityLabel[task.priority]}
           </span>
+          {task.direction && (
+            <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-purple-100 text-purple-700">
+              {task.direction.name}
+            </span>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <span className="text-gray-400 text-xs">Ответственный</span>
-            <p className="font-medium text-gray-700 mt-0.5 flex items-center gap-1.5">
-              {task.assignee ? (
-                <>
-                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] flex items-center justify-center font-bold">
-                    {task.assignee.name[0]}
-                  </span>
-                  {task.assignee.name}
-                </>
-              ) : '—'}
-            </p>
+            <span className="text-gray-400 text-xs">Ответственные</span>
+            {editingAssignees ? (
+              <div className="mt-1 space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {allPeople.map((p) => {
+                    const isSelected = selectedAssigneeIds.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setSelectedAssigneeIds((prev) =>
+                          isSelected ? prev.filter((i) => i !== p.id) : [...prev, p.id]
+                        )}
+                        className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium transition-all ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {p.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      if (selectedAssigneeIds.length > 0) {
+                        await api.updateTaskPublic(Number(id), { assigneeIds: selectedAssigneeIds });
+                        load();
+                      }
+                      setEditingAssignees(false);
+                    }}
+                    className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-lg font-medium"
+                  >
+                    OK
+                  </button>
+                  <button
+                    onClick={() => setEditingAssignees(false)}
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={async () => {
+                  if (allPeople.length === 0) {
+                    const p = await api.getPeoplePublic();
+                    setAllPeople(p);
+                  }
+                  setSelectedAssigneeIds(task.assignees?.map((a) => a.id) || []);
+                  setEditingAssignees(true);
+                }}
+                className="mt-1 cursor-pointer rounded-lg px-2 py-1 -mx-2 hover:bg-gray-50 transition-colors"
+              >
+                {task.assignees?.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {task.assignees.map((a) => (
+                      <span key={a.id} className="inline-flex items-center gap-1 text-sm font-medium text-gray-700">
+                        <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] flex items-center justify-center font-bold">
+                          {a.name[0]}
+                        </span>
+                        {a.name}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="font-medium text-gray-300 italic">Нажмите, чтобы назначить...</p>
+                )}
+              </div>
+            )}
           </div>
           <div>
             <span className="text-gray-400 text-xs">Дедлайн</span>
@@ -250,11 +320,10 @@ export default function TaskPage() {
                 onClick={() => startEdit('deadline')}
                 className={`font-medium mt-0.5 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1 -mx-2 transition-colors ${isOverdue ? 'text-red-600' : 'text-gray-700'}`}
               >
-                {deadlineDate.toLocaleDateString('ru-RU', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                })}
+                {deadlineDate
+                  ? deadlineDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+                  : <span className="text-gray-300 italic">без срока</span>
+                }
               </p>
             )}
           </div>
@@ -269,7 +338,7 @@ export default function TaskPage() {
 
         {task.comments && task.comments.length > 0 ? (
           <div className="space-y-3 mb-6">
-            {task.comments.map((c) => (
+            {task.comments.map((c: any) => (
               <div key={c.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">
@@ -296,7 +365,6 @@ export default function TaskPage() {
           </div>
         )}
 
-        {/* Comment form */}
         {userName ? (
           <form onSubmit={handleSubmit} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-3 text-sm text-gray-500">

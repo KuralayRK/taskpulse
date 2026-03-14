@@ -8,24 +8,42 @@ datasource db {
 }
 
 model Person {
-  id    Int     @id @default(autoincrement())
+  id    Int              @id @default(autoincrement())
   name  String
   email String?
+  tasks TaskAssignee[]
+}
+
+model Direction {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
   tasks Task[]
 }
 
 model Task {
-  id          Int       @id @default(autoincrement())
+  id          Int              @id @default(autoincrement())
   title       String
   description String?
-  deadline    DateTime
-  status      String    @default("todo")
-  priority    String    @default("medium")
-  assigneeId  Int?
-  assignee    Person?   @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  startDate   DateTime?
+  deadline    DateTime?
+  status      String           @default("todo")
+  priority    String           @default("medium")
+  directionId Int?
+  direction   Direction?       @relation(fields: [directionId], references: [id], onDelete: SetNull)
+  assignees   TaskAssignee[]
   comments    Comment[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model TaskAssignee {
+  id       Int    @id @default(autoincrement())
+  taskId   Int
+  personId Int
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, personId])
 }
 
 model Comment {

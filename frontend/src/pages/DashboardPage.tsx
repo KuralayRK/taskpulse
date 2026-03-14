@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 import type { Task } from '../types';
 
-function daysUntil(deadline: string): number {
+function daysUntil(deadline: string | null): number {
+  if (!deadline) return 999;
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   const dl = new Date(deadline);
@@ -11,7 +12,8 @@ function daysUntil(deadline: string): number {
   return Math.ceil((dl.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function friendlyDeadline(deadline: string): string {
+function friendlyDeadline(deadline: string | null): string {
+  if (!deadline) return 'без срока';
   const days = daysUntil(deadline);
   if (days < -1) return `${Math.abs(days)} дн. назад`;
   if (days === -1) return 'вчера';
@@ -47,6 +49,11 @@ interface TeamMember {
   okCount: number;
 }
 
+function assigneeNames(task: Task): string {
+  if (!task.assignees || task.assignees.length === 0) return '';
+  return task.assignees.map((a) => a.name).join(', ');
+}
+
 export default function DashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,36 +81,43 @@ export default function DashboardPage() {
     );
   }
 
+  const withDeadline = tasks.filter((t) => t.deadline);
   const active = tasks.filter((t) => t.status !== 'done');
   const done = tasks.filter((t) => t.status === 'done');
-  const overdue = active.filter((t) => daysUntil(t.deadline) < 0);
-  const soon = active.filter((t) => { const d = daysUntil(t.deadline); return d >= 0 && d <= 7; });
-  const ok = active.filter((t) => daysUntil(t.deadline) > 7);
-  const healthPercent = active.length > 0 ? Math.round(((active.length - overdue.length) / active.length) * 100) : 100;
+  const activeWithDl = active.filter((t) => t.deadline);
+  const overdue = activeWithDl.filter((t) => daysUntil(t.deadline) < 0);
+  const soon = activeWithDl.filter((t) => { const d = daysUntil(t.deadline); return d >= 0 && d <= 7; });
+  const ok = activeWithDl.filter((t) => daysUntil(t.deadline) > 7);
+  const healthPercent = activeWithDl.length > 0 ? Math.round(((activeWithDl.length - overdue.length) / activeWithDl.length) * 100) : 100;
   const healthColor = healthPercent >= 70 ? '#10b981' : healthPercent >= 40 ? '#f59e0b' : '#ef4444';
 
   const teamMap = new Map<string, TeamMember>();
   active.forEach((t) => {
-    const name = t.assignee?.name || 'Не назначен';
-    const m = teamMap.get(name) || { name, taskCount: 0, overdueCount: 0, soonCount: 0, okCount: 0 };
-    m.taskCount++;
-    const d = daysUntil(t.deadline);
-    if (d < 0) m.overdueCount++;
-    else if (d <= 7) m.soonCount++;
-    else m.okCount++;
-    teamMap.set(name, m);
+    const names = t.assignees?.length ? t.assignees.map((a) => a.name) : ['Не назначен'];
+    names.forEach((name) => {
+      const m = teamMap.get(name) || { name, taskCount: 0, overdueCount: 0, soonCount: 0, okCount: 0 };
+      m.taskCount++;
+      if (t.deadline) {
+        const d = daysUntil(t.deadline);
+        if (d < 0) m.overdueCount++;
+        else if (d <= 7) m.soonCount++;
+        else m.okCount++;
+      } else {
+        m.okCount++;
+      }
+      teamMap.set(name, m);
+    });
   });
   const team = Array.from(teamMap.values()).sort((a, b) => b.overdueCount - a.overdueCount || b.taskCount - a.taskCount);
   const maxTasks = Math.max(...team.map((m) => m.taskCount), 1);
 
   const attention = active
-    .filter((t) => daysUntil(t.deadline) <= 1)
+    .filter((t) => t.deadline && daysUntil(t.deadline) <= 1)
     .sort((a, b) => daysUntil(a.deadline) - daysUntil(b.deadline));
 
-  // Task dates for calendar
   const tasksByDate = new Map<string, Task[]>();
-  tasks.forEach((t) => {
-    const td = new Date(t.deadline);
+  withDeadline.forEach((t) => {
+    const td = new Date(t.deadline!);
     const key = `${td.getFullYear()}-${String(td.getMonth() + 1).padStart(2, '0')}-${String(td.getDate()).padStart(2, '0')}`;
     if (!tasksByDate.has(key)) tasksByDate.set(key, []);
     tasksByDate.get(key)!.push(t);
@@ -116,7 +130,7 @@ export default function DashboardPage() {
   team.forEach((m) => {
     if (m.taskCount >= 7) alerts.push({ text: `${m.name} — перегрузка (${m.taskCount} задач)`, type: 'warning' });
   });
-  const unassigned = active.filter((t) => !t.assigneeId);
+  const unassigned = active.filter((t) => !t.assignees?.length);
   if (unassigned.length > 0) alerts.push({ text: `${unassigned.length} без ответственного`, type: 'warning' });
 
   return (
@@ -143,9 +157,7 @@ export default function DashboardPage() {
           {overdue.length > 0 ? '🔥 Есть горящие задачи' : '✅ Всё под контролем'}
         </h1>
 
-        {/* Stats row */}
         <div className="flex items-center gap-3">
-          {/* Health circle */}
           <div className="relative flex items-center justify-center shrink-0">
             <CircleProgress percent={healthPercent} size={72} color={healthColor} />
             <span className="absolute text-lg font-bold">{healthPercent}%</span>
@@ -169,7 +181,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="px-4 mt-5">
-        {/* Alerts */}
         {alerts.length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-5">
             <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
@@ -186,7 +197,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Attention */}
         {attention.length > 0 && (
           <section className="mb-5">
             <h2 className="text-xs font-bold text-red-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
@@ -200,6 +210,7 @@ export default function DashboardPage() {
                   <Link
                     key={t.id}
                     to={`/tasks/${t.id}`}
+                    state={{ from: '/' }}
                     className={`block rounded-2xl p-4 border shadow-sm transition-all hover:shadow-md ${
                       isOverdue ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
                     }`}
@@ -212,12 +223,12 @@ export default function DashboardPage() {
                         {friendlyDeadline(t.deadline)}
                       </span>
                     </div>
-                    {t.assignee && (
+                    {t.assignees?.length > 0 && (
                       <div className="mt-1.5 flex items-center gap-1.5 text-sm text-gray-500">
                         <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] flex items-center justify-center font-bold">
-                          {t.assignee.name[0]}
+                          {t.assignees[0].name[0]}
                         </span>
-                        {t.assignee.name}
+                        {assigneeNames(t)}
                       </div>
                     )}
                     {t.lastComment && (
@@ -233,7 +244,6 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {/* Team */}
         <section className="mb-5">
           <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">👥 Команда</h2>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
@@ -391,13 +401,14 @@ export default function DashboardPage() {
                             <Link
                               key={t.id}
                               to={`/tasks/${t.id}`}
+                              state={{ from: '/' }}
                               className="flex items-center gap-2 text-sm text-gray-700 hover:text-indigo-600 transition-colors"
                             >
                               <span className={`w-2 h-2 rounded-full shrink-0 ${
                                 t.status === 'done' ? 'bg-gray-300' : t.priority === 'critical' || t.priority === 'high' ? 'bg-red-500' : 'bg-indigo-400'
                               }`} />
                               <span className={`truncate ${t.status === 'done' ? 'line-through text-gray-400' : ''}`}>{t.title}</span>
-                              {t.assignee && <span className="text-xs text-gray-400 shrink-0">({t.assignee.name})</span>}
+                              {t.assignees?.length > 0 && <span className="text-xs text-gray-400 shrink-0">({assigneeNames(t)})</span>}
                             </Link>
                           ))}
                         </div>
@@ -412,7 +423,6 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Quick stats */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
             <div className="text-2xl font-bold text-gray-800">{tasks.length}</div>

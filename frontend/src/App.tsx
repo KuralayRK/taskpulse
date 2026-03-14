@@ -1,19 +1,37 @@
-import { useState } from 'react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import BoardPage from './pages/BoardPage';
 import TaskPage from './pages/TaskPage';
 import AdminPage from './pages/AdminPage';
 import DashboardPage from './pages/DashboardPage';
+import RoadmapPage from './pages/RoadmapPage';
 import CreateTaskModal from './components/CreateTaskModal';
-// import { subscribeToPush } from './pushSubscribe';
+
+function getTabKey(path: string): string {
+  if (path === '/') return '/';
+  if (path === '/board' || path.startsWith('/tasks')) return '/board';
+  if (path === '/roadmap') return '/roadmap';
+  if (path === '/admin') return '/admin';
+  return path;
+}
 
 function BottomNav() {
   const location = useLocation();
+  const navigate = useNavigate();
   const path = location.pathname;
+  const lastPaths = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!path.startsWith('/tasks/')) {
+      const key = getTabKey(path);
+      lastPaths.current[key] = path;
+    }
+  }, [path]);
 
   const tabs = [
     {
-      to: '/',
+      key: '/',
+      defaultTo: '/',
       label: 'Панель',
       active: path === '/',
       icon: (
@@ -23,7 +41,8 @@ function BottomNav() {
       ),
     },
     {
-      to: '/board',
+      key: '/board',
+      defaultTo: '/board',
       label: 'Задачи',
       active: path === '/board' || path.startsWith('/tasks'),
       icon: (
@@ -33,8 +52,20 @@ function BottomNav() {
       ),
     },
     {
-      to: '/admin',
-      label: 'Управление',
+      key: '/roadmap',
+      defaultTo: '/roadmap',
+      label: 'Роадмап',
+      active: path === '/roadmap',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+        </svg>
+      ),
+    },
+    {
+      key: '/admin',
+      defaultTo: '/admin',
+      label: 'Админ',
       active: path === '/admin',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -45,20 +76,26 @@ function BottomNav() {
     },
   ];
 
+  const handleClick = (tab: typeof tabs[0]) => {
+    if (tab.active) return;
+    const target = lastPaths.current[tab.key] || tab.defaultTo;
+    navigate(target);
+  };
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-bottom">
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {tabs.map((tab) => (
-          <Link
-            key={tab.to}
-            to={tab.to}
+          <button
+            key={tab.key}
+            onClick={() => handleClick(tab)}
             className={`flex flex-col items-center gap-0.5 py-2 px-4 transition-colors ${
               tab.active ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'
             }`}
           >
             {tab.icon}
             <span className="text-[10px] font-medium">{tab.label}</span>
-          </Link>
+          </button>
         ))}
       </div>
     </nav>
@@ -67,13 +104,13 @@ function BottomNav() {
 
 function FAB({ onClick }: { onClick: () => void }) {
   const location = useLocation();
-  const show = location.pathname === '/' || location.pathname === '/board';
+  const show = location.pathname === '/' || location.pathname === '/board' || location.pathname === '/roadmap';
   if (!show) return null;
 
   return (
     <button
       onClick={onClick}
-      className="fixed right-4 bottom-20 z-50 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg shadow-indigo-600/30 flex items-center justify-center transition-all active:scale-95 safe-bottom-fab"
+      className="fixed right-4 bottom-24 z-50 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg shadow-indigo-600/30 flex items-center justify-center transition-all active:scale-95 safe-bottom-fab"
     >
       <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -95,6 +132,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/board" element={<BoardPage />} />
+          <Route path="/roadmap" element={<RoadmapPage />} />
           <Route path="/tasks/:id" element={<TaskPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Routes>

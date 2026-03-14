@@ -5,15 +5,23 @@ export interface Person {
   _count?: { tasks: number };
 }
 
+export interface Direction {
+  id: number;
+  name: string;
+  _count?: { tasks: number };
+}
+
 export interface Task {
   id: number;
   title: string;
   description: string | null;
-  deadline: string;
+  startDate: string | null;
+  deadline: string | null;
   status: 'todo' | 'in_progress' | 'done';
   priority: 'low' | 'medium' | 'high' | 'critical';
-  assigneeId: number | null;
-  assignee: Person | null;
+  directionId: number | null;
+  direction: Direction | null;
+  assignees: Person[];
   createdAt: string;
   updatedAt: string;
   _count?: { comments: number };

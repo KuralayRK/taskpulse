@@ -11,22 +11,30 @@ function daysFromNow(days: number): Date {
 
 async function main() {
   await prisma.comment.deleteMany();
+  await prisma.taskAssignee.deleteMany();
   await prisma.task.deleteMany();
   await prisma.person.deleteMany();
+  await prisma.direction.deleteMany();
 
   const ivan = await prisma.person.create({ data: { name: 'Иван', email: 'ivan@company.com' } });
   const dima = await prisma.person.create({ data: { name: 'Дима', email: 'dima@company.com' } });
   const anya = await prisma.person.create({ data: { name: 'Аня', email: 'anya@company.com' } });
   const olga = await prisma.person.create({ data: { name: 'Ольга', email: 'olga@company.com' } });
 
+  const dirDev = await prisma.direction.create({ data: { name: 'Разработка' } });
+  const dirBiz = await prisma.direction.create({ data: { name: 'Бизнес' } });
+  const dirDocs = await prisma.direction.create({ data: { name: 'Документация' } });
+
   const t1 = await prisma.task.create({
     data: {
       title: 'API интеграция с банком',
       description: 'Подключить платёжный шлюз через API банка для приёма онлайн-оплат',
+      startDate: daysFromNow(-14),
       deadline: daysFromNow(-4),
       priority: 'high',
       status: 'in_progress',
-      assigneeId: ivan.id,
+      directionId: dirDev.id,
+      assignees: { create: [{ personId: ivan.id }, { personId: dima.id }] },
     },
   });
 
@@ -34,10 +42,12 @@ async function main() {
     data: {
       title: 'Подписание акта ООО "Ромашка"',
       description: 'Получить подписанный акт выполненных работ от клиента',
+      startDate: daysFromNow(-7),
       deadline: daysFromNow(-2),
       priority: 'medium',
       status: 'todo',
-      assigneeId: olga.id,
+      directionId: dirBiz.id,
+      assignees: { create: [{ personId: olga.id }] },
     },
   });
 
@@ -45,10 +55,12 @@ async function main() {
     data: {
       title: 'Релиз v2.3',
       description: 'Финальное тестирование, код-ревью и деплой на продакшен',
+      startDate: daysFromNow(-3),
       deadline: daysFromNow(1),
       priority: 'high',
       status: 'in_progress',
-      assigneeId: dima.id,
+      directionId: dirDev.id,
+      assignees: { create: [{ personId: dima.id }, { personId: anya.id }] },
     },
   });
 
@@ -56,10 +68,12 @@ async function main() {
     data: {
       title: 'Демо клиенту',
       description: 'Подготовить и провести демонстрацию новых фич заказчику',
+      startDate: daysFromNow(0),
       deadline: daysFromNow(3),
       priority: 'medium',
       status: 'todo',
-      assigneeId: ivan.id,
+      directionId: dirBiz.id,
+      assignees: { create: [{ personId: ivan.id }] },
     },
   });
 
@@ -67,21 +81,34 @@ async function main() {
     data: {
       title: 'Обновить документацию',
       description: 'Обновить README, API docs и пользовательский гайд',
+      startDate: daysFromNow(2),
       deadline: daysFromNow(14),
       priority: 'low',
       status: 'todo',
-      assigneeId: anya.id,
+      directionId: dirDocs.id,
+      assignees: { create: [{ personId: anya.id }] },
     },
   });
 
   await prisma.task.create({
     data: {
       title: 'Рефакторинг модуля оплат',
-      description: 'Переписать модуль оплат на новую архитектуру с поддержкой нескольких провайдеров',
+      description: 'Переписать модуль оплат на новую архитектуру',
+      startDate: daysFromNow(5),
       deadline: daysFromNow(20),
       priority: 'medium',
       status: 'todo',
-      assigneeId: dima.id,
+      directionId: dirDev.id,
+      assignees: { create: [{ personId: dima.id }, { personId: ivan.id }, { personId: anya.id }] },
+    },
+  });
+
+  await prisma.task.create({
+    data: {
+      title: 'Провести ретроспективу',
+      priority: 'low',
+      status: 'todo',
+      assignees: { create: [{ personId: olga.id }] },
     },
   });
 
@@ -90,14 +117,6 @@ async function main() {
       taskId: t1.id,
       authorName: 'Иван',
       content: 'Отправил запрос на доступы к тестовому стенду банка. Ждём ответ от их IT-отдела.',
-    },
-  });
-
-  await prisma.comment.create({
-    data: {
-      taskId: t1.id,
-      authorName: 'Иван',
-      content: 'Банк до сих пор не выдал доступы, написал повторно. Без них не могу продолжить.',
     },
   });
 

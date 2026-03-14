@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import type { Person } from '../types';
+import type { Person, Direction } from '../api';
 
 interface Props {
   open: boolean;
@@ -8,40 +8,64 @@ interface Props {
   onCreated: () => void;
 }
 
-const emptyForm = {
-  title: '',
-  description: '',
-  deadline: '',
-  priority: 'medium',
-  assigneeId: '',
-};
-
 export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
-  const [form, setForm] = useState({ ...emptyForm });
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [priority, setPriority] = useState('medium');
+  const [selectedPeople, setSelectedPeople] = useState<number[]>([]);
+  const [directionId, setDirectionId] = useState<string>('');
+  const [newDirName, setNewDirName] = useState('');
   const [people, setPeople] = useState<Person[]>([]);
+  const [directions, setDirections] = useState<Direction[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
-      api.getPeoplePublic().then(setPeople).catch(() => {});
-      setForm({ ...emptyForm });
+      Promise.all([api.getPeoplePublic(), api.getDirections()]).then(([p, d]) => {
+        setPeople(p);
+        setDirections(d);
+      });
+      setTitle('');
+      setDescription('');
+      setStartDate('');
+      setDeadline('');
+      setPriority('medium');
+      setSelectedPeople([]);
+      setDirectionId('');
+      setNewDirName('');
     }
   }, [open]);
 
+  const togglePerson = (id: number) => {
+    setSelectedPeople((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : prev.length < 4 ? [...prev, id] : prev,
+    );
+  };
+
+  const canSubmit = title.trim() && selectedPeople.length > 0 && priority;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.deadline) return;
+    if (!canSubmit) return;
     setSaving(true);
-    await api.createTaskPublic({
-      title: form.title.trim(),
-      description: form.description.trim() || null,
-      deadline: form.deadline,
-      priority: form.priority,
-      assigneeId: form.assigneeId ? Number(form.assigneeId) : null,
-    });
-    setSaving(false);
-    onCreated();
-    onClose();
+    try {
+      await api.createTaskPublic({
+        title: title.trim(),
+        description: description.trim() || null,
+        startDate: startDate || null,
+        deadline: deadline || null,
+        priority,
+        assigneeIds: selectedPeople,
+        directionId: directionId === '__new__' ? null : (directionId ? Number(directionId) : null),
+        directionName: directionId === '__new__' ? newDirName.trim() : null,
+      });
+      onCreated();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!open) return null;
@@ -68,8 +92,8 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
             <label className="text-xs font-medium text-gray-500 mb-1.5 block">Название *</label>
             <input
               type="text"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               placeholder="Что нужно сделать?"
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               autoFocus
@@ -80,41 +104,90 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1.5 block">Описание</label>
             <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               placeholder="Подробности (необязательно)"
-              rows={3}
+              rows={2}
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
             />
           </div>
 
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1.5 block">Дедлайн *</label>
-            <input
-              type="date"
-              value={form.deadline}
-              onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              required
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1.5 block">Начало</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1.5 block">Дедлайн</label>
+              <input
+                type="date"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-500 mb-1.5 block">Ответственный</label>
+            <label className="text-xs font-medium text-gray-500 mb-1.5 block">
+              Ответственные * <span className="text-gray-400">(до 4)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {people.map((p) => {
+                const active = selectedPeople.includes(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => togglePerson(p.id)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      active
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                    } ${!active && selectedPeople.length >= 4 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    disabled={!active && selectedPeople.length >= 4}
+                  >
+                    {p.name}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedPeople.length === 0 && (
+              <p className="text-xs text-red-400 mt-1">Выберите хотя бы одного</p>
+            )}
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1.5 block">Направление</label>
             <select
-              value={form.assigneeId}
-              onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}
+              value={directionId}
+              onChange={(e) => setDirectionId(e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
             >
-              <option value="">Не назначен</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+              <option value="">Без направления</option>
+              {directions.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
               ))}
+              <option value="__new__">+ Создать новое...</option>
             </select>
+            {directionId === '__new__' && (
+              <input
+                type="text"
+                value={newDirName}
+                onChange={(e) => setNewDirName(e.target.value)}
+                placeholder="Название направления"
+                className="w-full mt-2 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            )}
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-500 mb-1.5 block">Приоритет</label>
+            <label className="text-xs font-medium text-gray-500 mb-1.5 block">Приоритет *</label>
             <div className="grid grid-cols-4 gap-2">
               {[
                 { value: 'low', label: 'Низкий', color: 'border-gray-200 text-gray-600 bg-gray-50' },
@@ -125,9 +198,9 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
                 <button
                   key={p.value}
                   type="button"
-                  onClick={() => setForm({ ...form, priority: p.value })}
+                  onClick={() => setPriority(p.value)}
                   className={`py-2 rounded-xl text-xs font-medium border transition-all ${
-                    form.priority === p.value
+                    priority === p.value
                       ? `${p.color} ring-2 ring-offset-1 ring-indigo-400`
                       : 'border-gray-200 text-gray-400 bg-white'
                   }`}
@@ -140,7 +213,7 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
 
           <button
             type="submit"
-            disabled={saving || !form.title.trim() || !form.deadline}
+            disabled={saving || !canSubmit}
             className="w-full bg-indigo-600 text-white py-3 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-40 transition-colors"
           >
             {saving ? 'Создаю...' : 'Создать задачу'}

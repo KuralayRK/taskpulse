@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import type { Task } from '../types';
+import type { Task, Direction } from '../types';
 
-function daysUntil(deadline: string): number {
+function daysUntil(deadline: string | null): number {
+  if (!deadline) return 999;
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   const dl = new Date(deadline);
@@ -11,7 +12,8 @@ function daysUntil(deadline: string): number {
   return Math.ceil((dl.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function friendlyDeadline(deadline: string): string {
+function friendlyDeadline(deadline: string | null): string {
+  if (!deadline) return 'без срока';
   const days = daysUntil(deadline);
   if (days < -1) return `${Math.abs(days)} дн. назад`;
   if (days === -1) return 'вчера';
@@ -28,6 +30,15 @@ function plural(n: number, one: string, few: string, many: string): string {
   if (mod10 === 1) return one;
   if (mod10 >= 2 && mod10 <= 4) return few;
   return many;
+}
+
+function assigneeNames(task: Task): string {
+  if (!task.assignees?.length) return '';
+  return task.assignees.map((a) => a.name).join(', ');
+}
+
+function isAssigned(task: Task, name: string): boolean {
+  return task.assignees?.some((a) => a.name.toLowerCase() === name.toLowerCase()) || false;
 }
 
 function NamePrompt({ onSubmit }: { onSubmit: (name: string) => void }) {
@@ -80,19 +91,19 @@ function HotTaskCard({ task, userName, onCommentAdded }: { task: Task; userName:
 
   return (
     <div className={`rounded-2xl p-5 ${isOverdue ? 'bg-gradient-to-br from-red-500 to-orange-500' : 'bg-gradient-to-br from-amber-400 to-orange-400'} text-white shadow-lg ${isOverdue ? 'shadow-red-500/30' : 'shadow-amber-400/30'}`}>
-      <Link to={`/tasks/${task.id}`}>
+      <Link to={`/tasks/${task.id}`} state={{ from: '/board' }}>
         <div className="flex items-start justify-between">
           <h3 className="font-bold text-lg leading-tight pr-2">{task.title}</h3>
           <span className="text-xs bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-full font-medium shrink-0">
             {friendlyDeadline(task.deadline)}
           </span>
         </div>
-        {task.assignee && (
+        {task.assignees?.length > 0 && (
           <div className="mt-2 flex items-center gap-2 text-white/80 text-sm">
             <span className="w-5 h-5 rounded-full bg-white/30 text-white text-[10px] flex items-center justify-center font-bold">
-              {task.assignee.name[0]}
+              {task.assignees[0].name[0]}
             </span>
-            {task.assignee.name}
+            {assigneeNames(task)}
           </div>
         )}
       </Link>
@@ -114,7 +125,7 @@ function HotTaskCard({ task, userName, onCommentAdded }: { task: Task; userName:
           {showForm ? 'Скрыть' : '💬 Комментировать'}
         </button>
         {(task._count?.comments ?? 0) > 0 && (
-          <Link to={`/tasks/${task.id}`} className="text-sm text-white/60">
+          <Link to={`/tasks/${task.id}`} state={{ from: '/board' }} className="text-sm text-white/60">
             {task._count?.comments} {plural(task._count?.comments ?? 0, 'комментарий', 'комментария', 'комментариев')}
           </Link>
         )}
@@ -147,12 +158,14 @@ function HotTaskCard({ task, userName, onCommentAdded }: { task: Task; userName:
 function CompactTaskRow({ task }: { task: Task }) {
   const days = daysUntil(task.deadline);
   const isDone = task.status === 'done';
-  const isOverdue = days < 0 && !isDone;
-  const isSoon = days >= 0 && days <= 3 && !isDone;
+  const hasDeadline = !!task.deadline;
+  const isOverdue = hasDeadline && days < 0 && !isDone;
+  const isSoon = hasDeadline && days >= 0 && days <= 3 && !isDone;
 
   return (
     <Link
       to={`/tasks/${task.id}`}
+      state={{ from: '/board' }}
       className={`flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-gray-50 ${isDone ? 'opacity-50' : ''}`}
     >
       <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
@@ -162,8 +175,8 @@ function CompactTaskRow({ task }: { task: Task }) {
         <span className={`text-sm font-medium ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
           {task.title}
         </span>
-        {task.assignee && (
-          <span className="text-xs text-gray-400 ml-2">{task.assignee.name}</span>
+        {task.assignees?.length > 0 && (
+          <span className="text-xs text-gray-400 ml-2">{assigneeNames(task)}</span>
         )}
       </div>
       <span className={`text-xs shrink-0 font-medium ${
@@ -180,25 +193,39 @@ function CompactTaskRow({ task }: { task: Task }) {
 
 export default function BoardPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [directions, setDirections] = useState<Direction[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState(() => localStorage.getItem('tp_user_name') || '');
-  const [filter, setFilter] = useState<string>('all');
+  const [filterNames, setFilterNames] = useState<string[]>([]);
+  const [filterDirs, setFilterDirs] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const loadTasks = () => {
-    api.getTasks().then((data) => {
-      setTasks(data);
-      setLoading(false);
+  const loadTasks = useCallback((q?: string) => {
+    Promise.all([api.getTasks(q), api.getDirections()]).then(([t, d]) => {
+      setTasks(t); setDirections(d); setLoading(false);
     });
+  }, []);
+
+  const handleSearch = (val: string) => {
+    setSearchInput(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearchQuery(val);
+      loadTasks(val || undefined);
+    }, 300);
   };
 
-  useEffect(() => { loadTasks(); }, []);
+  useEffect(() => { loadTasks(); }, [loadTasks]);
 
   useEffect(() => {
-    window.addEventListener('taskCreated', loadTasks);
-    return () => window.removeEventListener('taskCreated', loadTasks);
-  }, []);
+    const handler = () => loadTasks(searchQuery || undefined);
+    window.addEventListener('taskCreated', handler);
+    return () => window.removeEventListener('taskCreated', handler);
+  }, [loadTasks, searchQuery]);
 
   const handleSetName = (name: string) => {
     localStorage.setItem('tp_user_name', name);
@@ -217,13 +244,19 @@ export default function BoardPage() {
 
   const active = tasks.filter((t) => t.status !== 'done');
   const done = tasks.filter((t) => t.status === 'done');
-  const myTasks = active.filter((t) => t.assignee?.name?.toLowerCase() === userName.toLowerCase());
-  const myDone = done.filter((t) => t.assignee?.name?.toLowerCase() === userName.toLowerCase());
-  const hotTasks = myTasks.filter((t) => daysUntil(t.deadline) <= 1).sort((a, b) => daysUntil(a.deadline) - daysUntil(b.deadline));
-  const myOther = myTasks.filter((t) => daysUntil(t.deadline) > 1).sort((a, b) => daysUntil(a.deadline) - daysUntil(b.deadline));
+  const myTasks = active.filter((t) => isAssigned(t, userName));
+  const myDone = done.filter((t) => isAssigned(t, userName));
+  const hotTasks = myTasks.filter((t) => t.deadline && daysUntil(t.deadline) <= 1).sort((a, b) => daysUntil(a.deadline) - daysUntil(b.deadline));
+  const myOther = myTasks.filter((t) => !t.deadline || daysUntil(t.deadline) > 1).sort((a, b) => daysUntil(a.deadline) - daysUntil(b.deadline));
 
-  const assignees = Array.from(new Set(tasks.map((t) => t.assignee?.name).filter(Boolean))) as string[];
-  const filteredTasks = filter === 'all' ? tasks : tasks.filter((t) => t.assignee?.name === filter);
+  const assigneeSet = new Set<string>();
+  tasks.forEach((t) => t.assignees?.forEach((a) => assigneeSet.add(a.name)));
+  const assignees = Array.from(assigneeSet).sort();
+  const filteredTasks = tasks.filter((t) => {
+    if (filterNames.length > 0 && !t.assignees?.some((a) => filterNames.includes(a.name))) return false;
+    if (filterDirs.length > 0 && (!t.directionId || !filterDirs.includes(t.directionId))) return false;
+    return true;
+  });
   const totalMyTasks = myTasks.length + myDone.length;
   const myProgress = totalMyTasks > 0 ? Math.round((myDone.length / totalMyTasks) * 100) : 0;
 
@@ -237,7 +270,6 @@ export default function BoardPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Hero */}
       <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 text-white px-5 pb-6 rounded-b-3xl shadow-xl shadow-indigo-600/20 safe-top">
         <div className="flex items-center justify-between mb-4">
           {editingName ? (
@@ -297,7 +329,6 @@ export default function BoardPage() {
       </div>
 
       <div className="px-4 mt-5">
-        {/* Hot tasks */}
         {hotTasks.length > 0 && (
           <section className="mb-5">
             <h2 className="text-xs font-bold text-red-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
@@ -312,7 +343,6 @@ export default function BoardPage() {
           </section>
         )}
 
-        {/* My other tasks */}
         {myOther.length > 0 && (
           <section className="mb-5">
             <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Мои задачи</h2>
@@ -324,19 +354,30 @@ export default function BoardPage() {
           </section>
         )}
 
-        {/* Divider */}
         <div className="flex items-center gap-3 my-6">
           <div className="flex-1 h-px bg-gray-200" />
           <span className="text-xs text-gray-400 font-medium">Вся команда</span>
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
-        {/* Filters */}
-        <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4 scrollbar-hide mb-3">
+        <div className="relative mb-3">
+          <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+          </svg>
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="Поиск по названию, описанию, комментариям..."
+            className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+          />
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
           <button
-            onClick={() => setFilter('all')}
+            onClick={() => setFilterNames([])}
             className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              filter === 'all'
+              filterNames.length === 0
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                 : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
             }`}
@@ -344,14 +385,15 @@ export default function BoardPage() {
             Все ({tasks.length})
           </button>
           {assignees.map((name) => {
-            const count = tasks.filter((t) => t.assignee?.name === name).length;
+            const count = tasks.filter((t) => t.assignees?.some((a) => a.name === name)).length;
             const isMe = name.toLowerCase() === userName.toLowerCase();
+            const isActive = filterNames.includes(name);
             return (
               <button
                 key={name}
-                onClick={() => setFilter(filter === name ? 'all' : name)}
+                onClick={() => setFilterNames((prev) => isActive ? prev.filter((n) => n !== name) : [...prev, name])}
                 className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  filter === name
+                  isActive
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                     : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
                 }`}
@@ -362,7 +404,27 @@ export default function BoardPage() {
           })}
         </div>
 
-        {/* Team tasks */}
+        {directions.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4 scrollbar-hide mt-2 mb-3">
+            {directions.map((dir) => {
+              const isActive = filterDirs.includes(dir.id);
+              return (
+                <button
+                  key={dir.id}
+                  onClick={() => setFilterDirs((prev) => isActive ? prev.filter((d) => d !== dir.id) : [...prev, dir.id])}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    isActive
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'bg-white text-purple-600 border border-purple-200 hover:border-purple-300'
+                  }`}
+                >
+                  {dir.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100 mb-6">
           {filteredTasks
             .sort((a, b) => {

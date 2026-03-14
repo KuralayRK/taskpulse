@@ -209,32 +209,32 @@ export default function AdminPage() {
                 rows={2}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
               />
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Дедлайн</label>
+                <input
+                  type="date"
+                  value={form.deadline}
+                  onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Ответственный</label>
+                <select
+                  value={form.assigneeId}
+                  onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="">Не назначен</option>
+                  {people.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Дедлайн</label>
-                  <input
-                    type="date"
-                    value={form.deadline}
-                    onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Ответственный</label>
-                  <select
-                    value={form.assigneeId}
-                    onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                  >
-                    <option value="">Не назначен</option>
-                    {people.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Приоритет</label>
                   <select
@@ -337,13 +337,13 @@ export default function AdminPage() {
           {/* Add person form */}
           <form onSubmit={handleAddPerson} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm mb-6">
             <h2 className="font-semibold text-gray-800 mb-4">Добавить человека</h2>
-            <div className="flex gap-3">
+            <div className="space-y-3">
               <input
                 type="text"
                 placeholder="Имя"
                 value={newPersonName}
                 onChange={(e) => setNewPersonName(e.target.value)}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
               <input
@@ -351,11 +351,11 @@ export default function AdminPage() {
                 placeholder="Email (необязательно)"
                 value={newPersonEmail}
                 onChange={(e) => setNewPersonEmail(e.target.value)}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <button
                 type="submit"
-                className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shrink-0"
+                className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
               >
                 Добавить
               </button>

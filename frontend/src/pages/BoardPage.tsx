@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import type { Task } from '../types';
+import CreateTaskModal from '../components/CreateTaskModal';
 
 function daysUntil(deadline: string): number {
   const now = new Date();
@@ -185,6 +186,7 @@ export default function BoardPage() {
   const [filter, setFilter] = useState<string>('all');
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
 
   const loadTasks = () => {
     api.getTasks().then((data) => {
@@ -233,7 +235,7 @@ export default function BoardPage() {
   return (
     <div className="max-w-2xl mx-auto">
       {/* Hero */}
-      <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 text-white px-5 pt-8 pb-6 rounded-b-3xl shadow-xl shadow-indigo-600/20">
+      <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 text-white px-5 pb-6 rounded-b-3xl shadow-xl shadow-indigo-600/20 safe-top">
         <div className="flex items-center justify-between mb-4">
           {editingName ? (
             <form
@@ -259,10 +261,16 @@ export default function BoardPage() {
             </form>
           ) : (
             <>
-              <div>
+              <div className="flex-1">
                 <p className="text-sm text-indigo-200">{greeting()}</p>
                 <h1 className="text-2xl font-bold mt-0.5">{userName}</h1>
               </div>
+              <button
+                onClick={() => setShowCreate(true)}
+                className="bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors"
+              >
+                + Создать
+              </button>
               <button
                 onClick={() => { setNewName(userName); setEditingName(true); }}
                 className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-lg font-bold hover:bg-white/20 transition-colors"
@@ -377,6 +385,7 @@ export default function BoardPage() {
           </div>
         )}
       </div>
+      <CreateTaskModal open={showCreate} onClose={() => setShowCreate(false)} onCreated={loadTasks} />
     </div>
   );
 }

@@ -29,6 +29,15 @@ router.get('/tasks', async (_req, res) => {
   }
 });
 
+router.get('/people', async (_req, res) => {
+  try {
+    const people = await prisma.person.findMany({ orderBy: { name: 'asc' } });
+    res.json(people);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch people' });
+  }
+});
+
 router.get('/tasks/:id', async (req, res) => {
   try {
     const task = await prisma.task.findUnique({
@@ -42,6 +51,28 @@ router.get('/tasks/:id', async (req, res) => {
     res.json(task);
   } catch (e) {
     res.status(500).json({ error: 'Failed to fetch task' });
+  }
+});
+
+router.post('/tasks', async (req, res) => {
+  try {
+    const { title, description, deadline, priority, assigneeId } = req.body;
+    if (!title || !deadline) {
+      return res.status(400).json({ error: 'title and deadline are required' });
+    }
+    const task = await prisma.task.create({
+      data: {
+        title,
+        description: description || null,
+        deadline: new Date(deadline),
+        priority: priority || 'medium',
+        assigneeId: assigneeId ? Number(assigneeId) : null,
+      },
+      include: { assignee: true },
+    });
+    res.status(201).json(task);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to create task' });
   }
 });
 

@@ -13,6 +13,15 @@ export const api = {
 
   getTask: (id: number) => fetch(`${BASE}/tasks/${id}`).then((r) => r.json()),
 
+  getPeoplePublic: () => fetch(`${BASE}/people`).then((r) => r.json()),
+
+  createTaskPublic: (data: Record<string, unknown>) =>
+    fetch(`${BASE}/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then((r) => r.json()),
+
   updateTaskPublic: (id: number, data: Record<string, unknown>) =>
     fetch(`${BASE}/tasks/${id}`, {
       method: 'PUT',

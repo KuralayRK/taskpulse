@@ -70,7 +70,7 @@ export default function App() {
   // }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 pb-16">
+    <div className="min-h-screen flex flex-col bg-gray-50 pb-20">
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<BoardPage />} />

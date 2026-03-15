@@ -3,7 +3,7 @@ services:
     name: taskpulse
     runtime: node
     plan: free
-    buildCommand: npm run setup && npm run build
+    buildCommand: npm install && npm run setup:backend:render-sqlite && npm run setup:frontend && npm run build
     startCommand: npm run start
     envVars:
       - key: NODE_ENV

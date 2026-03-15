@@ -71,91 +71,23 @@ function NamePrompt({ onSubmit }: { onSubmit: (name: string) => void }) {
   );
 }
 
-function HotTaskCard({ task, userName, onCommentAdded }: { task: Task; userName: string; onCommentAdded: () => void }) {
-  const [showForm, setShowForm] = useState(false);
-  const [comment, setComment] = useState('');
-  const [sending, setSending] = useState(false);
+const STATUSES: { id: 'todo' | 'in_progress' | 'done'; label: string; headerClass: string }[] = [
+  { id: 'todo', label: 'Не начато', headerClass: 'bg-gray-100 text-gray-700 border-gray-200' },
+  { id: 'in_progress', label: 'В работе', headerClass: 'bg-blue-100 text-blue-800 border-blue-200' },
+  { id: 'done', label: 'Готово', headerClass: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+];
 
-  const handleSend = async () => {
-    if (!comment.trim()) return;
-    setSending(true);
-    await api.addComment(task.id, comment.trim(), userName);
-    setComment('');
-    setShowForm(false);
-    setSending(false);
-    onCommentAdded();
-  };
-
-  const days = daysUntil(task.deadline);
-  const isOverdue = days < 0;
-
-  return (
-    <div className={`rounded-2xl p-5 ${isOverdue ? 'bg-gradient-to-br from-red-500 to-orange-500' : 'bg-gradient-to-br from-amber-400 to-orange-400'} text-white shadow-lg ${isOverdue ? 'shadow-red-500/30' : 'shadow-amber-400/30'}`}>
-      <Link to={`/tasks/${task.id}`} state={{ from: '/board' }}>
-        <div className="flex items-start justify-between">
-          <h3 className="font-bold text-lg leading-tight pr-2">{task.title}</h3>
-          <span className="text-xs bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-full font-medium shrink-0">
-            {friendlyDeadline(task.deadline)}
-          </span>
-        </div>
-        {task.assignees?.length > 0 && (
-          <div className="mt-2 flex items-center gap-2 text-white/80 text-sm">
-            <span className="w-5 h-5 rounded-full bg-white/30 text-white text-[10px] flex items-center justify-center font-bold">
-              {task.assignees[0].name[0]}
-            </span>
-            {assigneeNames(task)}
-          </div>
-        )}
-      </Link>
-
-      {task.lastComment && (
-        <div className="mt-3 bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2.5 text-sm text-white/90">
-          <span className="font-semibold">{task.lastComment.authorName}:</span>{' '}
-          {task.lastComment.content.length > 80
-            ? task.lastComment.content.slice(0, 80) + '...'
-            : task.lastComment.content}
-        </div>
-      )}
-
-      <div className="mt-3 flex items-center justify-between">
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="text-sm bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-xl font-medium transition-colors"
-        >
-          {showForm ? 'Скрыть' : '💬 Комментировать'}
-        </button>
-        {(task._count?.comments ?? 0) > 0 && (
-          <Link to={`/tasks/${task.id}`} state={{ from: '/board' }} className="text-sm text-white/60">
-            {task._count?.comments} {plural(task._count?.comments ?? 0, 'комментарий', 'комментария', 'комментариев')}
-          </Link>
-        )}
-      </div>
-
-      {showForm && (
-        <div className="mt-3 flex gap-2">
-          <input
-            type="text"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Написать..."
-            className="flex-1 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/50 focus:outline-none focus:bg-white/30"
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            autoFocus
-          />
-          <button
-            onClick={handleSend}
-            disabled={sending || !comment.trim()}
-            className="bg-white text-gray-800 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40 transition-all hover:shadow-md"
-          >
-            {sending ? '...' : '→'}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CompactTaskRow({ task }: { task: Task }) {
+function KanbanCard({
+  task,
+  onDragStart,
+  onDragEnd,
+  isDragging,
+}: {
+  task: Task;
+  onDragStart: (e: React.DragEvent, taskId: number, status: string) => void;
+  onDragEnd: () => void;
+  isDragging: boolean;
+}) {
   const days = daysUntil(task.deadline);
   const isDone = task.status === 'done';
   const hasDeadline = !!task.deadline;
@@ -163,31 +95,43 @@ function CompactTaskRow({ task }: { task: Task }) {
   const isSoon = hasDeadline && days >= 0 && days <= 3 && !isDone;
 
   return (
-    <Link
-      to={`/tasks/${task.id}`}
-      state={{ from: '/board' }}
-      className={`flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-gray-50 ${isDone ? 'opacity-50' : ''}`}
+    <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('application/json', JSON.stringify({ taskId: task.id, status: task.status }));
+        e.dataTransfer.effectAllowed = 'move';
+        onDragStart(e, task.id, task.status);
+      }}
+      onDragEnd={onDragEnd}
+      className={`rounded-xl border border-gray-100 bg-white p-3 shadow-sm transition-shadow hover:shadow-md cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-50 shadow-lg' : ''} ${isDone ? 'opacity-90' : ''}`}
     >
-      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-        isDone ? 'bg-gray-300' : isOverdue ? 'bg-red-500' : isSoon ? 'bg-amber-400' : 'bg-emerald-400'
-      }`} />
-      <div className="flex-1 min-w-0">
+      <Link
+        to={`/tasks/${task.id}`}
+        state={{ from: '/board' }}
+        className="block"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className={`w-2.5 h-2.5 rounded-full shrink-0 inline-block mr-2 align-middle ${
+          isDone ? 'bg-gray-300' : isOverdue ? 'bg-red-500' : isSoon ? 'bg-amber-400' : 'bg-emerald-400'
+        }`} />
         <span className={`text-sm font-medium ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
           {task.title}
         </span>
-        {task.assignees?.length > 0 && (
-          <span className="text-xs text-gray-400 ml-2">{assigneeNames(task)}</span>
+      </Link>
+      {task.assignees?.length > 0 && (
+        <p className="text-xs text-gray-500 mt-1.5 truncate">{assigneeNames(task)}</p>
+      )}
+      <div className="flex items-center justify-between mt-2">
+        <span className={`text-xs font-medium ${
+          isOverdue ? 'text-red-600' : isSoon ? 'text-amber-600' : 'text-gray-400'
+        }`}>
+          {friendlyDeadline(task.deadline)}
+        </span>
+        {(task._count?.comments ?? 0) > 0 && (
+          <span className="text-xs text-gray-400">💬{task._count?.comments}</span>
         )}
       </div>
-      <span className={`text-xs shrink-0 font-medium ${
-        isOverdue ? 'text-red-600' : isSoon ? 'text-amber-600' : 'text-gray-400'
-      }`}>
-        {friendlyDeadline(task.deadline)}
-      </span>
-      {(task._count?.comments ?? 0) > 0 && (
-        <span className="text-xs text-gray-300">💬{task._count?.comments}</span>
-      )}
-    </Link>
+    </div>
   );
 }
 
@@ -202,6 +146,8 @@ export default function BoardPage() {
   const [searchInput, setSearchInput] = useState('');
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState('');
+  const [draggingTaskId, setDraggingTaskId] = useState<number | null>(null);
+  const [dropTargetStatus, setDropTargetStatus] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const loadTasks = useCallback((q?: string) => {
@@ -242,12 +188,10 @@ export default function BoardPage() {
     );
   }
 
-  const active = tasks.filter((t) => t.status !== 'done');
-  const done = tasks.filter((t) => t.status === 'done');
-  const myTasks = active.filter((t) => isAssigned(t, userName));
-  const myDone = done.filter((t) => isAssigned(t, userName));
-  const hotTasks = myTasks.filter((t) => t.deadline && daysUntil(t.deadline) <= 1).sort((a, b) => daysUntil(a.deadline) - daysUntil(b.deadline));
-  const myOther = myTasks.filter((t) => !t.deadline || daysUntil(t.deadline) > 1).sort((a, b) => daysUntil(a.deadline) - daysUntil(b.deadline));
+  const myTasks = tasks.filter((t) => t.status !== 'done' && isAssigned(t, userName));
+  const myDone = tasks.filter((t) => t.status === 'done' && isAssigned(t, userName));
+  const totalMyTasks = myTasks.length + myDone.length;
+  const myProgress = totalMyTasks > 0 ? Math.round((myDone.length / totalMyTasks) * 100) : 0;
 
   const assigneeSet = new Set<string>();
   tasks.forEach((t) => t.assignees?.forEach((a) => assigneeSet.add(a.name)));
@@ -257,8 +201,6 @@ export default function BoardPage() {
     if (filterDirs.length > 0 && (!t.directionId || !filterDirs.includes(t.directionId))) return false;
     return true;
   });
-  const totalMyTasks = myTasks.length + myDone.length;
-  const myProgress = totalMyTasks > 0 ? Math.round((myDone.length / totalMyTasks) * 100) : 0;
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -268,8 +210,28 @@ export default function BoardPage() {
     return '🌆 Добрый вечер';
   };
 
+  const byStatus = {
+    todo: filteredTasks.filter((t) => t.status === 'todo'),
+    in_progress: filteredTasks.filter((t) => t.status === 'in_progress'),
+    done: filteredTasks.filter((t) => t.status === 'done'),
+  };
+
+  const handleDrop = async (e: React.DragEvent, newStatus: 'todo' | 'in_progress' | 'done') => {
+    e.preventDefault();
+    setDropTargetStatus(null);
+    setDraggingTaskId(null);
+    const raw = e.dataTransfer.getData('application/json');
+    if (!raw) return;
+    try {
+      const { taskId, status } = JSON.parse(raw);
+      if (status === newStatus) return;
+      await api.updateTaskPublic(taskId, { status: newStatus });
+      loadTasks(searchQuery || undefined);
+    } catch (_) {}
+  };
+
   return (
-    <div className="max-w-2xl lg:max-w-4xl mx-auto px-2 lg:px-4">
+    <div className="w-full max-w-6xl mx-auto px-2 lg:px-4">
       <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 text-white px-5 pb-6 rounded-b-3xl shadow-xl shadow-indigo-600/20 safe-top">
         <div className="flex items-center justify-between mb-4">
           {editingName ? (
@@ -328,38 +290,7 @@ export default function BoardPage() {
         ) : null}
       </div>
 
-      <div className="px-4 mt-5">
-        {hotTasks.length > 0 && (
-          <section className="mb-5">
-            <h2 className="text-xs font-bold text-red-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              Требует внимания
-            </h2>
-            <div className="space-y-3">
-              {hotTasks.map((t) => (
-                <HotTaskCard key={t.id} task={t} userName={userName} onCommentAdded={loadTasks} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {myOther.length > 0 && (
-          <section className="mb-5">
-            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Мои задачи</h2>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
-              {myOther.map((t) => (
-                <CompactTaskRow key={t.id} task={t} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        <div className="flex items-center gap-3 my-6">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs text-gray-400 font-medium">Вся команда</span>
-          <div className="flex-1 h-px bg-gray-200" />
-        </div>
-
+      <div className="px-2 sm:px-4 mt-5">
         <div className="relative mb-3">
           <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
@@ -425,17 +356,48 @@ export default function BoardPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100 mb-6">
-          {filteredTasks
-            .sort((a, b) => {
-              if (a.status === 'done' && b.status !== 'done') return 1;
-              if (a.status !== 'done' && b.status === 'done') return -1;
-              return daysUntil(a.deadline) - daysUntil(b.deadline);
-            })
-            .map((t) => (
-              <CompactTaskRow key={t.id} task={t} />
-            ))}
-        </div>
+        {/* Канбан: 3 вертикальные колонки (как в Jira) */}
+        <section className="mt-6" aria-label="Канбан-доска по статусам">
+          <h2 className="text-lg font-bold text-gray-900 mb-1">Доска по статусам</h2>
+          <p className="text-sm text-gray-500 mb-3">Три колонки: <strong>Не начато</strong> → <strong>В работе</strong> → <strong>Готово</strong>. Перетащите карточку в другую колонку — статус обновится.</p>
+          <div className="overflow-x-auto rounded-lg border-2 border-gray-300 bg-gray-200 p-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex min-w-[750px]">
+              {STATUSES.map(({ id, label, headerClass }) => (
+                <div
+                  key={id}
+                  role="region"
+                  aria-label={`Колонка: ${label}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setDropTargetStatus(id);
+                  }}
+                  onDragLeave={() => setDropTargetStatus(null)}
+                  onDrop={(e) => handleDrop(e, id)}
+                  className={`flex flex-col flex-1 min-w-[240px] max-w-[400px] min-h-[420px] mx-0.5 rounded-lg border-2 border-gray-300 bg-white overflow-hidden ${dropTargetStatus === id ? 'border-indigo-500 bg-indigo-50' : ''}`}
+                >
+                  <div className={`shrink-0 py-3 px-4 border-b-2 border-gray-200 ${headerClass}`}>
+                    <h3 className="font-bold text-sm text-gray-900">{label}</h3>
+                    <p className="text-xs text-gray-600 mt-0.5">{byStatus[id].length} задач</p>
+                  </div>
+                  <div className="flex-1 p-3 space-y-2 overflow-y-auto min-h-0 bg-white">
+                {byStatus[id]
+                  .sort((a, b) => daysUntil(a.deadline) - daysUntil(b.deadline))
+                  .map((t) => (
+                    <KanbanCard
+                      key={t.id}
+                      task={t}
+                      onDragStart={() => setDraggingTaskId(t.id)}
+                      onDragEnd={() => { setDraggingTaskId(null); setDropTargetStatus(null); }}
+                      isDragging={draggingTaskId === t.id}
+                    />
+                  ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
 
         {filteredTasks.length === 0 && (
           <div className="text-center py-12">

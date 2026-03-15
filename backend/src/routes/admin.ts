@@ -23,6 +23,86 @@ router.post('/login', (req: Request, res: Response) => {
 
 router.use(adminAuth);
 
+// --- Export (скачать все данные перед переходом на Postgres) ---
+router.get('/export', async (_req: Request, res: Response) => {
+  try {
+    const [people, directions, tasks, taskAssignees, comments] = await Promise.all([
+      prisma.person.findMany({ orderBy: { id: 'asc' } }),
+      prisma.direction.findMany({ orderBy: { id: 'asc' } }),
+      prisma.task.findMany({ orderBy: { id: 'asc' } }),
+      prisma.taskAssignee.findMany({ orderBy: { id: 'asc' } }),
+      prisma.comment.findMany({ orderBy: { id: 'asc' } }),
+    ]);
+    res.setHeader('Content-Disposition', 'attachment; filename="taskpulse-backup.json"');
+    res.json({ people, directions, tasks, taskAssignees, comments, exportedAt: new Date().toISOString() });
+  } catch (e) {
+    res.status(500).json({ error: 'Export failed' });
+  }
+});
+
+// --- Import (загрузить бэкап в новую БД после перехода на Postgres) ---
+router.post('/import', async (req: Request, res: Response) => {
+  try {
+    const { people, directions, tasks, taskAssignees, comments } = req.body as {
+      people?: Array<{ id: number; name: string; email?: string | null }>;
+      directions?: Array<{ id: number; name: string }>;
+      tasks?: Array<{ id: number; title: string; description?: string | null; startDate?: string | null; deadline?: string | null; status: string; priority: string; directionId?: number | null; createdAt?: string; updatedAt?: string }>;
+      taskAssignees?: Array<{ id: number; taskId: number; personId: number }>;
+      comments?: Array<{ id: number; content: string; authorName: string; taskId: number; createdAt?: string }>;
+    };
+    if (!people || !Array.isArray(people)) return res.status(400).json({ error: 'Invalid backup: people required' });
+
+    const personOldToNew = new Map<number, number>();
+    const directionOldToNew = new Map<number, number>();
+    const taskOldToNew = new Map<number, number>();
+
+    await prisma.comment.deleteMany();
+    await prisma.taskAssignee.deleteMany();
+    await prisma.task.deleteMany();
+    await prisma.direction.deleteMany();
+    await prisma.person.deleteMany();
+
+    for (const p of people) {
+      const created = await prisma.person.create({ data: { name: p.name, email: p.email ?? null } });
+      personOldToNew.set(p.id, created.id);
+    }
+    for (const d of directions || []) {
+      const created = await prisma.direction.create({ data: { name: d.name } });
+      directionOldToNew.set(d.id, created.id);
+    }
+    for (const t of tasks || []) {
+      const newDirId = t.directionId != null ? directionOldToNew.get(t.directionId) ?? null : null;
+      const created = await prisma.task.create({
+        data: {
+          title: t.title,
+          description: t.description ?? null,
+          startDate: t.startDate ? new Date(t.startDate) : null,
+          deadline: t.deadline ? new Date(t.deadline) : null,
+          status: t.status || 'todo',
+          priority: t.priority || 'medium',
+          directionId: newDirId,
+        },
+      });
+      taskOldToNew.set(t.id, created.id);
+    }
+    for (const a of taskAssignees || []) {
+      const newTaskId = taskOldToNew.get(a.taskId);
+      const newPersonId = personOldToNew.get(a.personId);
+      if (newTaskId != null && newPersonId != null)
+        await prisma.taskAssignee.create({ data: { taskId: newTaskId, personId: newPersonId } });
+    }
+    for (const c of comments || []) {
+      const newTaskId = taskOldToNew.get(c.taskId);
+      if (newTaskId != null)
+        await prisma.comment.create({ data: { content: c.content, authorName: c.authorName, taskId: newTaskId } });
+    }
+
+    res.json({ ok: true, people: people.length, directions: (directions || []).length, tasks: (tasks || []).length });
+  } catch (e) {
+    res.status(500).json({ error: 'Import failed' });
+  }
+});
+
 // --- Tasks ---
 
 router.delete('/tasks/:id', async (req: Request, res: Response) => {

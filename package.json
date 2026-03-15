@@ -4,6 +4,8 @@
   "scripts": {
     "setup": "npm install && npm run setup:backend && npm run setup:frontend",
     "setup:backend": "cd backend && npm install && npx prisma generate && npx prisma db push && npx prisma db seed",
+    "setup:backend:deploy": "cd backend && npm install && npx prisma generate && npx prisma migrate deploy",
+    "setup:backend:render-sqlite": "cd backend && npm install && npx prisma generate && npx prisma db push",
     "setup:frontend": "cd frontend && npm install",
     "build": "cd frontend && npm run build",
     "start": "cd backend && npx tsx src/index.ts",

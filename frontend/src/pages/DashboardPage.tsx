@@ -127,9 +127,6 @@ export default function DashboardPage() {
   team.forEach((m) => {
     if (m.overdueCount > 0) alerts.push({ text: `${m.name} — ${m.overdueCount} просроч.`, type: 'danger' });
   });
-  team.forEach((m) => {
-    if (m.taskCount >= 7) alerts.push({ text: `${m.name} — перегрузка (${m.taskCount} задач)`, type: 'warning' });
-  });
   const unassigned = active.filter((t) => !t.assignees?.length);
   if (unassigned.length > 0) alerts.push({ text: `${unassigned.length} без ответственного`, type: 'warning' });
 

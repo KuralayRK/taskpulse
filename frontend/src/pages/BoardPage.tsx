@@ -269,7 +269,7 @@ export default function BoardPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl lg:max-w-4xl mx-auto px-2 lg:px-4">
       <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 text-white px-5 pb-6 rounded-b-3xl shadow-xl shadow-indigo-600/20 safe-top">
         <div className="flex items-center justify-between mb-4">
           {editingName ? (

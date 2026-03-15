@@ -103,6 +103,13 @@ export const api = {
       body: JSON.stringify({ name, email }),
     }).then((r) => r.json()),
 
+  updatePerson: (id: number, data: { name?: string; email?: string | null }) =>
+    fetch(`${BASE}/admin/people/${id}`, {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify(data),
+    }).then((r) => r.json()),
+
   deletePerson: (id: number) =>
     fetch(`${BASE}/admin/people/${id}`, {
       method: 'DELETE',
@@ -112,6 +119,13 @@ export const api = {
   getDirectionsAdmin: (): Promise<Direction[]> =>
     fetch(`${BASE}/admin/directions`, {
       headers: { 'x-admin-key': adminKey() },
+    }).then((r) => r.json()),
+
+  updateDirection: (id: number, name: string) =>
+    fetch(`${BASE}/admin/directions/${id}`, {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({ name }),
     }).then((r) => r.json()),
 
   deleteDirection: (id: number) =>

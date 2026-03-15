@@ -59,6 +59,22 @@ router.post('/people', async (req: Request, res: Response) => {
   }
 });
 
+router.put('/people/:id', async (req: Request, res: Response) => {
+  try {
+    const { name, email } = req.body;
+    const person = await prisma.person.update({
+      where: { id: Number(req.params.id) },
+      data: {
+        ...(name !== undefined && { name: String(name).trim() }),
+        ...(email !== undefined && { email: email === '' || email == null ? null : String(email).trim() }),
+      },
+    });
+    res.json(person);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to update person' });
+  }
+});
+
 router.delete('/people/:id', async (req: Request, res: Response) => {
   try {
     await prisma.person.delete({ where: { id: Number(req.params.id) } });
@@ -79,6 +95,20 @@ router.get('/directions', async (_req: Request, res: Response) => {
     res.json(dirs);
   } catch (e) {
     res.status(500).json({ error: 'Failed to fetch directions' });
+  }
+});
+
+router.put('/directions/:id', async (req: Request, res: Response) => {
+  try {
+    const { name } = req.body;
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' });
+    const dir = await prisma.direction.update({
+      where: { id: Number(req.params.id) },
+      data: { name: String(name).trim() },
+    });
+    res.json(dir);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to update direction' });
   }
 });
 

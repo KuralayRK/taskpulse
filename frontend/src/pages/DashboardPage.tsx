@@ -134,7 +134,7 @@ export default function DashboardPage() {
   if (unassigned.length > 0) alerts.push({ text: `${unassigned.length} без ответственного`, type: 'warning' });
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl lg:max-w-5xl mx-auto px-2 lg:px-4">
       {/* Hero */}
       <div className="bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-900 text-white px-5 pb-6 rounded-b-3xl shadow-xl safe-top">
         {(() => {

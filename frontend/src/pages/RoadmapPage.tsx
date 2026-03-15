@@ -13,11 +13,12 @@ const laneColors = [
 ];
 const noColor = { bar: '#9ca3af', barLight: '#f3f4f6', label: 'bg-gray-100 text-gray-500' };
 
-const WEEK_W = 120;
 const BAR_H = 26;
 const ROW_GAP = 4;
 const LANE_PAD = 8;
 const LABEL_W = 110;
+const WEEK_W_MOBILE = 120;
+const WEEK_W_DESKTOP = 72;
 
 const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
 const statusLabel: Record<string, string> = { todo: 'Не начато', in_progress: 'В работе', done: 'Готово' };
@@ -91,6 +92,14 @@ export default function RoadmapPage() {
   const [filterNames, setFilterNames] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [isWide, setIsWide] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const fn = () => setIsWide(mq.matches);
+    mq.addEventListener('change', fn);
+    return () => mq.removeEventListener('change', fn);
+  }, []);
+  const weekW = isWide ? WEEK_W_DESKTOP : WEEK_W_MOBILE;
 
   const loadData = () => {
     Promise.all([api.getTasks(), api.getDirections()]).then(([t, d]) => {
@@ -162,11 +171,11 @@ export default function RoadmapPage() {
     let cM = -1, cY = -1, mS = 0;
     weekList.forEach((w, i) => {
       if (w.month !== cM || w.year !== cY) {
-        if (cM >= 0) mHeaders.push({ label: `${monthNames[cM]} ${cY}`, left: mS * WEEK_W, width: (i - mS) * WEEK_W });
+        if (cM >= 0) mHeaders.push({ label: `${monthNames[cM]} ${cY}`, left: mS * weekW, width: (i - mS) * weekW });
         cM = w.month; cY = w.year; mS = i;
       }
     });
-    if (cM >= 0) mHeaders.push({ label: `${monthNames[cM]} ${cY}`, left: mS * WEEK_W, width: (weekList.length - mS) * WEEK_W });
+    if (cM >= 0) mHeaders.push({ label: `${monthNames[cM]} ${cY}`, left: mS * weekW, width: (weekList.length - mS) * weekW });
 
     const lanesArr: Lane[] = [];
     directions.forEach((dir) => {
@@ -183,15 +192,15 @@ export default function RoadmapPage() {
     }
 
     const todayDays = daysBetween(firstMonday, now);
-    return { lanes: lanesArr, weeks: weekList, timelineStart: firstMonday, timelineW: weekList.length * WEEK_W, todayX: (todayDays / 7) * WEEK_W, monthHeaders: mHeaders };
-  }, [filtered, directions]);
+    return { lanes: lanesArr, weeks: weekList, timelineStart: firstMonday, timelineW: weekList.length * weekW, todayX: (todayDays / 7) * weekW, monthHeaders: mHeaders };
+  }, [filtered, directions, weekW]);
 
   function computeLaneBars(lane: Lane): BarPos[] {
     const barMeta = lane.tasks.map((task) => {
       const s = getTaskStart(task); s.setHours(0, 0, 0, 0);
       const e = getTaskEnd(task); e.setHours(0, 0, 0, 0);
-      const left = (daysBetween(timelineStart, s) / 7) * WEEK_W;
-      const width = Math.max((Math.max(daysBetween(s, e), 1) / 7) * WEEK_W, 30);
+      const left = (daysBetween(timelineStart, s) / 7) * weekW;
+      const width = Math.max((Math.max(daysBetween(s, e), 1) / 7) * weekW, 30);
       return { task, left, width };
     });
     const rows = computeRows(barMeta);
@@ -223,7 +232,7 @@ export default function RoadmapPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl lg:max-w-7xl mx-auto px-2 lg:px-6">
       {/* Hero */}
       <div className="bg-gradient-to-br from-purple-700 via-indigo-700 to-purple-800 text-white px-5 pb-5 rounded-b-3xl shadow-xl safe-top">
         {(() => {
@@ -363,7 +372,7 @@ export default function RoadmapPage() {
                         <div
                           key={i}
                           className={`shrink-0 text-center text-[10px] border-r border-gray-100 flex items-center justify-center ${isThisWeek ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-gray-400'}`}
-                          style={{ width: WEEK_W }}
+                          style={{ width: weekW }}
                         >
                           {w.label}
                         </div>
@@ -385,7 +394,7 @@ export default function RoadmapPage() {
                     >
                       <div className="absolute top-0 bottom-0 w-px bg-indigo-400/40 z-[2]" style={{ left: todayX }} />
                       {weeks.map((_, i) => (
-                        <div key={i} className="absolute top-0 bottom-0 w-px bg-gray-100" style={{ left: i * WEEK_W }} />
+                        <div key={i} className="absolute top-0 bottom-0 w-px bg-gray-100" style={{ left: i * weekW }} />
                       ))}
                       {bars.map(({ task, left, width, row }) => {
                         const isDone = task.status === 'done';

@@ -2,8 +2,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Production (Render): use PostgreSQL + DATABASE_URL from Environment
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -23,7 +24,7 @@ model Direction {
 model Task {
   id          Int              @id @default(autoincrement())
   title       String
-  description String?
+  description String? @db.Text
   startDate   DateTime?
   deadline    DateTime?
   status      String           @default("todo")
@@ -48,7 +49,7 @@ model TaskAssignee {
 
 model Comment {
   id         Int      @id @default(autoincrement())
-  content    String
+  content    String   @db.Text
   authorName String
   taskId     Int
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)

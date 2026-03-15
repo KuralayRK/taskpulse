@@ -3,12 +3,11 @@ services:
     name: taskpulse
     runtime: node
     plan: free
-    buildCommand: npm install && npm run setup:backend:render-sqlite && npm run setup:frontend && npm run build
+    buildCommand: npm install && npm run setup:backend:deploy && npm run setup:frontend && npm run build
     startCommand: npm run start
     envVars:
       - key: NODE_ENV
         value: production
       - key: ADMIN_PASSWORD
         value: admin
-      - key: DATABASE_URL
-        value: file:./dev.db
+      # DATABASE_URL — создай PostgreSQL в Render и добавь сюда URL (Environment в настройках сервиса)

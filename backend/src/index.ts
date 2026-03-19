@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
 import { tasksRouter } from './routes/tasks.js';
 import { adminRouter } from './routes/admin.js';
 import { mvpRouter } from './routes/mvp.js';
@@ -10,6 +11,8 @@ import { mvpRouter } from './routes/mvp.js';
 // import { setupNotifications } from './notifications.js';
 
 dotenv.config();
+
+const prisma = new PrismaClient();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,9 +43,28 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-app.listen(PORT, () => {
+async function ensureMvpMonths() {
+  try {
+    const count = await prisma.mvpMonth.count();
+    if (count === 0) {
+      const year = new Date().getFullYear();
+      for (let m = 1; m <= 12; m++) {
+        const ym = `${year}-${String(m).padStart(2, '0')}`;
+        await prisma.mvpMonth.upsert({
+          where: { yearMonth: ym },
+          update: {},
+          create: { yearMonth: ym, sortOrder: m - 1 },
+        });
+      }
+      console.log(`Created 12 MvpMonth records for ${year}`);
+    }
+  } catch (e) {
+    console.error('Failed to seed MvpMonth:', e);
+  }
+}
+
+app.listen(PORT, async () => {
   console.log(`TaskPulse → http://localhost:${PORT}`);
-  console.log(`MVP:      GET http://localhost:${PORT}/api/mvp/health  и  /api/mvp/board`);
-  console.log(`          (если этой строки нет в терминале — крутится СТАРЫЙ процесс; заверши его и запусти снова: npm run dev)`);
+  await ensureMvpMonths();
   // setupNotifications();
 });

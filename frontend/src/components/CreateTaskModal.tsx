@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { api } from '../api';
-import type { Person, Direction } from '../api';
+import type { Person, Direction, Product, MvpItem } from '../api';
 
 interface Props {
   open: boolean;
@@ -17,15 +17,23 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
   const [selectedPeople, setSelectedPeople] = useState<number[]>([]);
   const [directionId, setDirectionId] = useState<string>('');
   const [newDirName, setNewDirName] = useState('');
+  const [productId, setProductId] = useState<string>('');
+  const [epicId, setEpicId] = useState<string>('');
   const [people, setPeople] = useState<Person[]>([]);
   const [directions, setDirections] = useState<Direction[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [epics, setEpics] = useState<MvpItem[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
-      Promise.all([api.getPeoplePublic(), api.getDirections()]).then(([p, d]) => {
+      Promise.all([api.getPeoplePublic(), api.getDirections(), api.getProducts(), api.getMvpBoard()]).then(([p, d, pr, board]) => {
         setPeople(p);
         setDirections(d);
+        setProducts(pr);
+        const allEpics: MvpItem[] = [];
+        for (const mo of board.months) for (const it of mo.items) allEpics.push(it);
+        setEpics(allEpics);
       });
       setTitle('');
       setDescription('');
@@ -35,8 +43,20 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
       setSelectedPeople([]);
       setDirectionId('');
       setNewDirName('');
+      setProductId('');
+      setEpicId('');
     }
   }, [open]);
+
+  const filteredProducts = useMemo(() => {
+    if (!directionId || directionId === '__new__') return products;
+    return products.filter((p) => p.directionId === Number(directionId));
+  }, [products, directionId]);
+
+  const filteredEpics = useMemo(() => {
+    if (!productId) return epics;
+    return epics.filter((ep) => ep.productId === Number(productId));
+  }, [epics, productId]);
 
   const togglePerson = (id: number) => {
     setSelectedPeople((prev) =>
@@ -60,6 +80,8 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
         assigneeIds: selectedPeople,
         directionId: directionId === '__new__' ? null : (directionId ? Number(directionId) : null),
         directionName: directionId === '__new__' ? newDirName.trim() : null,
+        productId: productId ? Number(productId) : null,
+        mvpItemId: epicId ? Number(epicId) : null,
       });
       onCreated();
       onClose();
@@ -184,6 +206,34 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
                 className="w-full mt-2 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             )}
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1.5 block">Продукт</label>
+            <select
+              value={productId}
+              onChange={(e) => { setProductId(e.target.value); setEpicId(''); }}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+            >
+              <option value="">Без продукта</option>
+              {filteredProducts.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1.5 block">Эпик</label>
+            <select
+              value={epicId}
+              onChange={(e) => setEpicId(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+            >
+              <option value="">Без эпика</option>
+              {filteredEpics.map((ep) => (
+                <option key={ep.id} value={ep.id}>{ep.title}</option>
+              ))}
+            </select>
           </div>
 
           <div>

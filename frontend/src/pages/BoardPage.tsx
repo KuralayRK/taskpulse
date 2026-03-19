@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import type { Task, Direction } from '../types';
+import type { Task, Direction, Product } from '../types';
 
-function daysUntil(deadline: string | null): number {
+function daysUntil(deadline: string | null | undefined): number {
   if (!deadline) return 999;
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -12,7 +12,7 @@ function daysUntil(deadline: string | null): number {
   return Math.ceil((dl.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function friendlyDeadline(deadline: string | null): string {
+function friendlyDeadline(deadline: string | null | undefined): string {
   if (!deadline) return 'без срока';
   const days = daysUntil(deadline);
   if (days < -1) return `${Math.abs(days)} дн. назад`;
@@ -138,10 +138,15 @@ function KanbanCard({
 export default function BoardPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [directions, setDirections] = useState<Direction[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState(() => localStorage.getItem('tp_user_name') || '');
   const [filterNames, setFilterNames] = useState<string[]>([]);
   const [filterDirs, setFilterDirs] = useState<number[]>([]);
+  const [filterProducts, setFilterProducts] = useState<number[]>([]);
+  const [filterNoDirection, setFilterNoDirection] = useState(false);
+  const [filterNoProduct, setFilterNoProduct] = useState(false);
+  const [filterNoAssignee, setFilterNoAssignee] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [editingName, setEditingName] = useState(false);
@@ -151,8 +156,8 @@ export default function BoardPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const loadTasks = useCallback((q?: string) => {
-    Promise.all([api.getTasks(q), api.getDirections()]).then(([t, d]) => {
-      setTasks(t); setDirections(d); setLoading(false);
+    Promise.all([api.getTasks(q), api.getDirections(), api.getProducts()]).then(([t, d, p]) => {
+      setTasks(t); setDirections(d); setProducts(p); setLoading(false);
     });
   }, []);
 
@@ -197,8 +202,12 @@ export default function BoardPage() {
   tasks.forEach((t) => t.assignees?.forEach((a) => assigneeSet.add(a.name)));
   const assignees = Array.from(assigneeSet).sort();
   const filteredTasks = tasks.filter((t) => {
-    if (filterNames.length > 0 && !t.assignees?.some((a) => filterNames.includes(a.name))) return false;
-    if (filterDirs.length > 0 && (!t.directionId || !filterDirs.includes(t.directionId))) return false;
+    if (filterNoDirection) { if (t.directionId) return false; }
+    else if (filterDirs.length > 0 && (!t.directionId || !filterDirs.includes(t.directionId))) return false;
+    if (filterNoProduct) { if (t.productId) return false; }
+    else if (filterProducts.length > 0 && (!t.productId || !filterProducts.includes(t.productId))) return false;
+    if (filterNoAssignee) { if (t.assignees?.length) return false; }
+    else if (filterNames.length > 0 && !t.assignees?.some((a) => filterNames.includes(a.name))) return false;
     return true;
   });
 
@@ -304,11 +313,12 @@ export default function BoardPage() {
           />
         </div>
 
+        {/* Ответственные */}
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
           <button
-            onClick={() => setFilterNames([])}
+            onClick={() => { setFilterNames([]); setFilterNoAssignee(false); }}
             className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              filterNames.length === 0
+              filterNames.length === 0 && !filterNoAssignee
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                 : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
             }`}
@@ -322,7 +332,7 @@ export default function BoardPage() {
             return (
               <button
                 key={name}
-                onClick={() => setFilterNames((prev) => isActive ? prev.filter((n) => n !== name) : [...prev, name])}
+                onClick={() => { setFilterNames((prev) => isActive ? prev.filter((n) => n !== name) : [...prev, name]); setFilterNoAssignee(false); }}
                 className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
                   isActive
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
@@ -333,28 +343,74 @@ export default function BoardPage() {
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={() => { setFilterNoAssignee((v) => !v); setFilterNames([]); }}
+            className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              filterNoAssignee ? 'bg-red-500 text-white shadow-sm' : 'bg-white text-red-500 border border-red-200 hover:border-red-300'
+            }`}
+          >
+            Без ответственных
+          </button>
         </div>
 
-        {directions.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4 scrollbar-hide mt-2 mb-3">
-            {directions.map((dir) => {
-              const isActive = filterDirs.includes(dir.id);
-              return (
-                <button
-                  key={dir.id}
-                  onClick={() => setFilterDirs((prev) => isActive ? prev.filter((d) => d !== dir.id) : [...prev, dir.id])}
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-purple-600 text-white shadow-sm'
-                      : 'bg-white text-purple-600 border border-purple-200 hover:border-purple-300'
-                  }`}
-                >
-                  {dir.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {/* Направления */}
+        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide mt-1">
+          {directions.map((dir) => {
+            const isActive = filterDirs.includes(dir.id);
+            return (
+              <button
+                key={dir.id}
+                onClick={() => { setFilterDirs((prev) => isActive ? prev.filter((d) => d !== dir.id) : [...prev, dir.id]); setFilterNoDirection(false); }}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  isActive
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'bg-white text-purple-600 border border-purple-200 hover:border-purple-300'
+                }`}
+              >
+                {dir.name}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => { setFilterNoDirection((v) => !v); setFilterDirs([]); }}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+              filterNoDirection ? 'bg-red-500 text-white shadow-sm' : 'bg-white text-red-500 border border-red-200 hover:border-red-300'
+            }`}
+          >
+            Без направления
+          </button>
+        </div>
+
+        {/* Продукты */}
+        <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4 scrollbar-hide mt-1 mb-2">
+          {products.map((p) => {
+            const isActive = filterProducts.includes(p.id);
+            return (
+              <button
+                key={p.id}
+                onClick={() => { setFilterProducts((prev) => isActive ? prev.filter((x) => x !== p.id) : [...prev, p.id]); setFilterNoProduct(false); }}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  isActive
+                    ? 'bg-teal-600 text-white shadow-sm'
+                    : 'bg-white text-teal-600 border border-teal-200 hover:border-teal-300'
+                }`}
+              >
+                {p.name}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => { setFilterNoProduct((v) => !v); setFilterProducts([]); }}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+              filterNoProduct ? 'bg-red-500 text-white shadow-sm' : 'bg-white text-red-500 border border-red-200 hover:border-red-300'
+            }`}
+          >
+            Без продукта
+          </button>
+        </div>
 
         {/* Канбан: 3 вертикальные колонки (как в Jira) */}
         <section className="mt-6" aria-label="Канбан-доска по статусам">

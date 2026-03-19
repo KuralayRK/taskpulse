@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../api';
-import type { Task, Person } from '../types';
+import type { Task, Person, Direction, Product } from '../types';
+import type { MvpItem } from '../api';
 
 const priorityLabel: Record<string, string> = {
   critical: 'Критичный',
@@ -29,7 +30,7 @@ const statusStyle: Record<string, string> = {
   done: 'bg-emerald-100 text-emerald-700',
 };
 
-type EditingField = 'title' | 'description' | 'deadline' | 'status' | null;
+type EditingField = 'title' | 'description' | 'startDate' | 'deadline' | 'status' | 'priority' | 'direction' | 'product' | 'epic' | null;
 
 export default function TaskPage() {
   const { id } = useParams();
@@ -47,6 +48,9 @@ export default function TaskPage() {
   const [editingAssignees, setEditingAssignees] = useState(false);
   const [allPeople, setAllPeople] = useState<Person[]>([]);
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<number[]>([]);
+  const [allDirections, setAllDirections] = useState<Direction[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [allEpics, setAllEpics] = useState<MvpItem[]>([]);
 
   const userName = localStorage.getItem('tp_user_name') || '';
 
@@ -68,13 +72,37 @@ export default function TaskPage() {
     }
   }, [editingField]);
 
-  const startEdit = (field: EditingField) => {
+  const startEdit = async (field: EditingField) => {
     if (!task || !field) return;
     switch (field) {
       case 'title': setEditValue(task.title); break;
       case 'description': setEditValue(task.description || ''); break;
+      case 'startDate': setEditValue(task.startDate ? task.startDate.slice(0, 10) : ''); break;
       case 'deadline': setEditValue(task.deadline ? task.deadline.slice(0, 10) : ''); break;
       case 'status': setEditValue(task.status); break;
+      case 'priority': setEditValue(task.priority); break;
+      case 'direction':
+        if (allDirections.length === 0) {
+          const dirs = await api.getDirections();
+          setAllDirections(dirs);
+        }
+        setEditValue(String(task.directionId ?? ''));
+        break;
+      case 'product':
+        if (allProducts.length === 0) {
+          const prods = await api.getProducts();
+          setAllProducts(prods);
+        }
+        setEditValue(String(task.productId ?? ''));
+        break;
+      case 'epic': {
+        const board = await api.getMvpBoard();
+        const epics: MvpItem[] = [];
+        for (const mo of board.months) for (const it of mo.items) epics.push(it);
+        setAllEpics(epics);
+        setEditValue(String(task.mvpItemId ?? ''));
+        break;
+      }
     }
     setEditingField(field);
   };
@@ -90,11 +118,26 @@ export default function TaskPage() {
       case 'description':
         data.description = editValue.trim() || null;
         break;
+      case 'startDate':
+        data.startDate = editValue || null;
+        break;
       case 'deadline':
         data.deadline = editValue || null;
         break;
       case 'status':
         data.status = editValue;
+        break;
+      case 'priority':
+        data.priority = editValue;
+        break;
+      case 'direction':
+        data.directionId = editValue ? Number(editValue) : null;
+        break;
+      case 'product':
+        data.productId = editValue ? Number(editValue) : null;
+        break;
+      case 'epic':
+        data.mvpItemId = editValue ? Number(editValue) : null;
         break;
     }
     setEditingField(null);
@@ -142,6 +185,8 @@ export default function TaskPage() {
     );
   }
 
+  const hasStartDate = !!task.startDate;
+  const startDateObj = hasStartDate ? new Date(task.startDate!) : null;
   const hasDeadline = !!task.deadline;
   const deadlineDate = hasDeadline ? new Date(task.deadline!) : null;
   const now = new Date();
@@ -217,12 +262,92 @@ export default function TaskPage() {
               {statusLabel[task.status]}
             </span>
           )}
-          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${priorityStyle[task.priority]}`}>
-            {priorityLabel[task.priority]}
-          </span>
-          {task.direction && (
-            <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-purple-100 text-purple-700">
-              {task.direction.name}
+          {editingField === 'priority' ? (
+            <select
+              ref={inputRef as React.RefObject<HTMLSelectElement>}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={saveField}
+              className="text-xs px-2.5 py-1 rounded-full font-medium border border-indigo-200 bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="low">Низкий</option>
+              <option value="medium">Средний</option>
+              <option value="high">Высокий</option>
+              <option value="critical">Критичный</option>
+            </select>
+          ) : (
+            <span
+              onClick={() => startEdit('priority')}
+              className={`text-xs px-2.5 py-1 rounded-full font-medium cursor-pointer hover:ring-2 hover:ring-indigo-200 transition-all ${priorityStyle[task.priority]}`}
+            >
+              {priorityLabel[task.priority]}
+            </span>
+          )}
+          {editingField === 'direction' ? (
+            <select
+              ref={inputRef as React.RefObject<HTMLSelectElement>}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={saveField}
+              className="text-xs px-2.5 py-1 rounded-full font-medium border border-indigo-200 bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Без направления</option>
+              {allDirections.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          ) : (
+            <span
+              onClick={() => startEdit('direction')}
+              className="text-xs px-2.5 py-1 rounded-full font-medium cursor-pointer hover:ring-2 hover:ring-indigo-200 transition-all bg-purple-100 text-purple-700"
+            >
+              {task.direction?.name || 'Без направления'}
+            </span>
+          )}
+          {editingField === 'product' ? (
+            <select
+              ref={inputRef as React.RefObject<HTMLSelectElement>}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={saveField}
+              className="text-xs px-2.5 py-1 rounded-full font-medium border border-indigo-200 bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Без продукта</option>
+              {allProducts
+                .filter((p) => !task.directionId || p.directionId === task.directionId)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+            </select>
+          ) : (
+            <span
+              onClick={() => startEdit('product')}
+              className="text-xs px-2.5 py-1 rounded-full font-medium cursor-pointer hover:ring-2 hover:ring-indigo-200 transition-all bg-teal-100 text-teal-700"
+            >
+              {task.product?.name || 'Без продукта'}
+            </span>
+          )}
+          {editingField === 'epic' ? (
+            <select
+              ref={inputRef as React.RefObject<HTMLSelectElement>}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={saveField}
+              className="text-xs px-2.5 py-1 rounded-full font-medium border border-indigo-200 bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Без эпика</option>
+              {allEpics
+                .filter((ep) => !task.productId || ep.productId === task.productId)
+                .map((ep) => (
+                  <option key={ep.id} value={ep.id}>{ep.title}</option>
+                ))}
+            </select>
+          ) : (
+            <span
+              onClick={() => startEdit('epic')}
+              className="text-xs px-2.5 py-1 rounded-full font-medium cursor-pointer hover:ring-2 hover:ring-indigo-200 transition-all bg-amber-100 text-amber-700"
+            >
+              {task.mvpItem?.title || 'Без эпика'}
             </span>
           )}
         </div>
@@ -301,6 +426,30 @@ export default function TaskPage() {
                   <p className="font-medium text-gray-300 italic">Нажмите, чтобы назначить...</p>
                 )}
               </div>
+            )}
+          </div>
+          <div>
+            <span className="text-gray-400 text-xs">Дата начала</span>
+            {editingField === 'startDate' ? (
+              <input
+                ref={inputRef as React.RefObject<HTMLInputElement>}
+                type="date"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={saveField}
+                onKeyDown={handleKeyDown}
+                className="w-full font-medium mt-0.5 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            ) : (
+              <p
+                onClick={() => startEdit('startDate')}
+                className="font-medium mt-0.5 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1 -mx-2 transition-colors text-gray-700"
+              >
+                {startDateObj
+                  ? startDateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+                  : <span className="text-gray-300 italic">не задана</span>
+                }
+              </p>
             )}
           </div>
           <div>

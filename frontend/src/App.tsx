@@ -5,12 +5,14 @@ import TaskPage from './pages/TaskPage';
 import AdminPage from './pages/AdminPage';
 import DashboardPage from './pages/DashboardPage';
 import RoadmapPage from './pages/RoadmapPage';
+import MvpPage from './pages/MvpPage';
 import CreateTaskModal from './components/CreateTaskModal';
 
 function getTabKey(path: string): string {
   if (path === '/') return '/';
   if (path === '/board' || path.startsWith('/tasks')) return '/board';
   if (path === '/roadmap') return '/roadmap';
+  if (path === '/mvp') return '/mvp';
   if (path === '/admin') return '/admin';
   return path;
 }
@@ -63,6 +65,17 @@ function BottomNav() {
       ),
     },
     {
+      key: '/mvp',
+      defaultTo: '/mvp',
+      label: 'MVP',
+      active: path === '/mvp',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      ),
+    },
+    {
       key: '/admin',
       defaultTo: '/admin',
       label: 'Админ',
@@ -84,17 +97,17 @@ function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-bottom">
-      <div className="flex items-center justify-around max-w-lg mx-auto">
+      <div className="flex items-center justify-around max-w-lg mx-auto gap-0.5 px-1">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => handleClick(tab)}
-            className={`flex flex-col items-center gap-0.5 py-2 px-4 transition-colors ${
+            className={`flex flex-col items-center gap-0.5 py-2 px-2 sm:px-3 flex-1 min-w-0 transition-colors ${
               tab.active ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'
             }`}
           >
             {tab.icon}
-            <span className="text-[10px] font-medium">{tab.label}</span>
+            <span className="text-[9px] sm:text-[10px] font-medium truncate max-w-full">{tab.label}</span>
           </button>
         ))}
       </div>
@@ -104,13 +117,27 @@ function BottomNav() {
 
 function FAB({ onClick }: { onClick: () => void }) {
   const location = useLocation();
-  const show = location.pathname === '/' || location.pathname === '/board' || location.pathname === '/roadmap';
+  const show =
+    location.pathname === '/' ||
+    location.pathname === '/board' ||
+    location.pathname === '/roadmap' ||
+    location.pathname === '/mvp';
   if (!show) return null;
+
+  const handleFabClick = () => {
+    if (location.pathname === '/mvp') {
+      window.dispatchEvent(new CustomEvent('mvp-open-add-epic'));
+      return;
+    }
+    onClick();
+  };
 
   return (
     <button
-      onClick={onClick}
+      type="button"
+      onClick={handleFabClick}
       className="fixed right-4 bottom-24 z-50 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg shadow-indigo-600/30 flex items-center justify-center transition-all active:scale-95 safe-bottom-fab"
+      aria-label="Добавить"
     >
       <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -133,6 +160,7 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/board" element={<BoardPage />} />
           <Route path="/roadmap" element={<RoadmapPage />} />
+          <Route path="/mvp" element={<MvpPage />} />
           <Route path="/tasks/:id" element={<TaskPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Routes>

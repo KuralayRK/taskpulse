@@ -7,6 +7,8 @@ const router = Router();
 const taskInclude = {
   assignees: { include: { person: true } },
   direction: true,
+  product: { include: { direction: true } },
+  mvpItem: true,
   _count: { select: { comments: true } },
   comments: {
     orderBy: { createdAt: 'desc' as const },
@@ -57,7 +59,7 @@ router.get('/people', async (_req, res) => {
 router.get('/directions', async (_req, res) => {
   try {
     const dirs = await prisma.direction.findMany({
-      include: { _count: { select: { tasks: true } } },
+      include: { _count: { select: { tasks: true, products: true } }, products: { orderBy: { name: 'asc' } } },
       orderBy: { name: 'asc' },
     });
     res.json(dirs);
@@ -88,6 +90,8 @@ router.get('/tasks/:id', async (req, res) => {
       include: {
         assignees: { include: { person: true } },
         direction: true,
+        product: { include: { direction: true } },
+        mvpItem: true,
         comments: { orderBy: { createdAt: 'asc' } },
       },
     });
@@ -103,7 +107,7 @@ router.get('/tasks/:id', async (req, res) => {
 
 router.post('/tasks', async (req, res) => {
   try {
-    const { title, description, startDate, deadline, priority, assigneeIds, directionId, directionName } = req.body;
+    const { title, description, startDate, deadline, priority, assigneeIds, directionId, directionName, productId, mvpItemId } = req.body;
     if (!title) return res.status(400).json({ error: 'title is required' });
     if (!priority) return res.status(400).json({ error: 'priority is required' });
     if (!assigneeIds || !assigneeIds.length) return res.status(400).json({ error: 'at least one assignee is required' });
@@ -127,6 +131,8 @@ router.post('/tasks', async (req, res) => {
         deadline: deadline ? new Date(deadline) : null,
         priority,
         directionId: resolvedDirId,
+        productId: productId ? Number(productId) : null,
+        mvpItemId: mvpItemId ? Number(mvpItemId) : null,
         assignees: {
           create: assigneeIds.map((id: number) => ({ personId: Number(id) })),
         },
@@ -134,6 +140,8 @@ router.post('/tasks', async (req, res) => {
       include: {
         assignees: { include: { person: true } },
         direction: true,
+        product: true,
+        mvpItem: true,
       },
     });
     res.status(201).json({ ...task, assignees: task.assignees.map((a) => a.person) });
@@ -148,7 +156,7 @@ router.put('/tasks/:id', async (req, res) => {
     if (!task) return res.status(404).json({ error: 'Task not found' });
 
     const data: Record<string, unknown> = {};
-    const { title, description, startDate, deadline, status, priority, assigneeIds, directionId, directionName } = req.body;
+    const { title, description, startDate, deadline, status, priority, assigneeIds, directionId, directionName, productId, mvpItemId } = req.body;
     if (title !== undefined) data.title = title;
     if (description !== undefined) data.description = description;
     if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null;
@@ -170,6 +178,9 @@ router.put('/tasks/:id', async (req, res) => {
         data.directionId = null;
       }
     }
+
+    if (productId !== undefined) data.productId = productId ? Number(productId) : null;
+    if (mvpItemId !== undefined) data.mvpItemId = mvpItemId ? Number(mvpItemId) : null;
 
     if (assigneeIds !== undefined) {
       await prisma.taskAssignee.deleteMany({ where: { taskId: Number(req.params.id) } });

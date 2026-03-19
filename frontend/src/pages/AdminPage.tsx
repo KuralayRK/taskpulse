@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../api';
-import type { Task, Person, Direction } from '../types';
+import type { Task, Person, Direction, Product } from '../types';
 
 export default function AdminPage() {
   const [authed, setAuthed] = useState(() => !!localStorage.getItem('tp_admin_key'));
@@ -10,7 +10,8 @@ export default function AdminPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [directions, setDirections] = useState<Direction[]>([]);
-  const [tab, setTab] = useState<'tasks' | 'people' | 'directions'>('tasks');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [tab, setTab] = useState<'tasks' | 'people' | 'directions' | 'products'>('tasks');
 
   const [newPersonName, setNewPersonName] = useState('');
   const [newPersonEmail, setNewPersonEmail] = useState('');
@@ -20,6 +21,11 @@ export default function AdminPage() {
   const [editPersonEmail, setEditPersonEmail] = useState('');
   const [editingDirId, setEditingDirId] = useState<number | null>(null);
   const [editDirName, setEditDirName] = useState('');
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductDirId, setNewProductDirId] = useState<string>('');
+  const [editingProductId, setEditingProductId] = useState<number | null>(null);
+  const [editProductName, setEditProductName] = useState('');
+  const [editProductDirId, setEditProductDirId] = useState<string>('');
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -45,10 +51,11 @@ export default function AdminPage() {
   };
 
   const loadData = useCallback(async (q?: string) => {
-    const [t, p, d] = await Promise.all([api.getTasks(q), api.getPeople(), api.getDirectionsAdmin()]);
+    const [t, p, d, pr] = await Promise.all([api.getTasks(q), api.getPeople(), api.getDirectionsAdmin(), api.getProductsAdmin()]);
     setTasks(t);
     setPeople(p);
     setDirections(d);
+    setProducts(pr);
   }, []);
 
   useEffect(() => {
@@ -116,6 +123,30 @@ export default function AdminPage() {
   const handleDeleteDirection = async (id: number) => {
     if (!confirm('Удалить направление?')) return;
     await api.deleteDirection(id);
+    loadData();
+  };
+
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProductName.trim() || !newProductDirId) return;
+    await api.createProductAdmin({ name: newProductName.trim(), directionId: Number(newProductDirId) });
+    setNewProductName('');
+    setNewProductDirId('');
+    loadData();
+  };
+
+  const handleUpdateProduct = async (id: number) => {
+    if (!editProductName.trim() || !editProductDirId) return;
+    await api.updateProductAdmin(id, { name: editProductName.trim(), directionId: Number(editProductDirId) });
+    setEditingProductId(null);
+    setEditProductName('');
+    setEditProductDirId('');
+    loadData(searchQuery || undefined);
+  };
+
+  const handleDeleteProduct = async (id: number) => {
+    if (!confirm('Удалить продукт?')) return;
+    await api.deleteProductAdmin(id);
     loadData();
   };
 
@@ -197,15 +228,20 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1">
-        {(['tasks', 'people', 'directions'] as const).map((t) => (
+        {([
+          { id: 'tasks' as const, label: `Задачи (${tasks.length})` },
+          { id: 'people' as const, label: `Люди (${people.length})` },
+          { id: 'directions' as const, label: `Направления (${directions.length})` },
+          { id: 'products' as const, label: `Продукты (${products.length})` },
+        ]).map((t) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-              tab === t ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex-1 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors ${
+              tab === t.id ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            {t === 'tasks' ? `Задачи (${tasks.length})` : t === 'people' ? `Люди (${people.length})` : `Направления (${directions.length})`}
+            {t.label}
           </button>
         ))}
       </div>
@@ -384,6 +420,133 @@ export default function AdminPage() {
             {people.length === 0 && (
               <p className="text-center py-8 text-gray-400 text-sm">
                 Добавьте людей, чтобы назначать им задачи
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {tab === 'products' && (
+        <>
+          <form onSubmit={handleAddProduct} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm mb-6">
+            <h2 className="font-semibold text-gray-800 mb-4">Добавить продукт</h2>
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Название продукта"
+                value={newProductName}
+                onChange={(e) => setNewProductName(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+              />
+              <select
+                value={newProductDirId}
+                onChange={(e) => setNewProductDirId(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                required
+              >
+                <option value="">Выберите направление</option>
+                {directions.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                disabled={!newProductName.trim() || !newProductDirId}
+                className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-40"
+              >
+                Добавить
+              </button>
+            </div>
+          </form>
+
+          <div className="space-y-2">
+            {products.map((product) => (
+              <div
+                key={product.id}
+                className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3"
+              >
+                {editingProductId === product.id ? (
+                  <>
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={editProductName}
+                        onChange={(e) => setEditProductName(e.target.value)}
+                        placeholder="Название"
+                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        autoFocus
+                      />
+                      <select
+                        value={editProductDirId}
+                        onChange={(e) => setEditProductDirId(e.target.value)}
+                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                      >
+                        <option value="">Направление</option>
+                        {directions.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      onClick={() => handleUpdateProduct(product.id)}
+                      className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg shrink-0"
+                      title="Сохранить"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => { setEditingProductId(null); setEditProductName(''); setEditProductDirId(''); }}
+                      className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg shrink-0"
+                      title="Отмена"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 text-sm flex items-center justify-center font-medium shrink-0">
+                      {product.name[0]}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 text-sm">{product.name}</div>
+                      <div className="text-xs text-gray-400">
+                        {product.direction?.name ?? '—'} · {product._count?.mvpItems ?? 0} эпиков · {product._count?.tasks ?? 0} задач
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setEditingProductId(product.id);
+                        setEditProductName(product.name);
+                        setEditProductDirId(String(product.directionId));
+                      }}
+                      className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg shrink-0"
+                      title="Редактировать"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteProduct(product.id)}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Удалить"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+            {products.length === 0 && (
+              <p className="text-center py-8 text-gray-400 text-sm">
+                Нет продуктов
               </p>
             )}
           </div>

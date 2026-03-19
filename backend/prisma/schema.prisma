@@ -2,7 +2,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Production (Render): use PostgreSQL + DATABASE_URL from Environment
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -16,21 +15,59 @@ model Person {
 }
 
 model Direction {
-  id    Int    @id @default(autoincrement())
-  name  String @unique
-  tasks Task[]
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  tasks    Task[]
+  products Product[]
+}
+
+model Product {
+  id          Int       @id @default(autoincrement())
+  name        String
+  directionId Int
+  direction   Direction @relation(fields: [directionId], references: [id], onDelete: Cascade)
+  mvpItems    MvpItem[]
+  tasks       Task[]
+
+  @@unique([name, directionId])
+}
+
+model MvpMonth {
+  id         Int       @id @default(autoincrement())
+  yearMonth  String    @unique
+  subtitle   String    @default("")
+  sortOrder  Int       @default(0)
+  items      MvpItem[] @relation("MvpItemStartMonth")
+  endItems   MvpItem[] @relation("MvpItemEndMonth")
+}
+
+model MvpItem {
+  id          Int        @id @default(autoincrement())
+  title       String
+  sortOrder   Int        @default(0)
+  monthId     Int
+  month       MvpMonth   @relation("MvpItemStartMonth", fields: [monthId], references: [id], onDelete: Cascade)
+  endMonthId  Int?
+  endMonth    MvpMonth?  @relation("MvpItemEndMonth", fields: [endMonthId], references: [id], onDelete: SetNull)
+  productId   Int?
+  product     Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+  tasks       Task[]
 }
 
 model Task {
   id          Int              @id @default(autoincrement())
   title       String
-  description String? @db.Text
+  description String?          @db.Text
   startDate   DateTime?
   deadline    DateTime?
   status      String           @default("todo")
   priority    String           @default("medium")
   directionId Int?
   direction   Direction?       @relation(fields: [directionId], references: [id], onDelete: SetNull)
+  productId   Int?
+  product     Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  mvpItemId   Int?
+  mvpItem     MvpItem?         @relation(fields: [mvpItemId], references: [id], onDelete: SetNull)
   assignees   TaskAssignee[]
   comments    Comment[]
   createdAt   DateTime         @default(now())

@@ -201,4 +201,58 @@ router.delete('/directions/:id', async (req: Request, res: Response) => {
   }
 });
 
+// --- Products ---
+
+router.get('/products', async (_req: Request, res: Response) => {
+  try {
+    const products = await prisma.product.findMany({
+      include: { direction: true, _count: { select: { mvpItems: true, tasks: true } } },
+      orderBy: { name: 'asc' },
+    });
+    res.json(products);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
+});
+
+router.post('/products', async (req: Request, res: Response) => {
+  try {
+    const { name, directionId } = req.body;
+    if (!name?.trim() || !directionId) return res.status(400).json({ error: 'name and directionId required' });
+    const product = await prisma.product.create({
+      data: { name: String(name).trim(), directionId: Number(directionId) },
+      include: { direction: true },
+    });
+    res.status(201).json(product);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to create product' });
+  }
+});
+
+router.put('/products/:id', async (req: Request, res: Response) => {
+  try {
+    const data: Record<string, unknown> = {};
+    const { name, directionId } = req.body;
+    if (name !== undefined) data.name = String(name).trim();
+    if (directionId !== undefined) data.directionId = Number(directionId);
+    const product = await prisma.product.update({
+      where: { id: Number(req.params.id) },
+      data,
+      include: { direction: true },
+    });
+    res.json(product);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to update product' });
+  }
+});
+
+router.delete('/products/:id', async (req: Request, res: Response) => {
+  try {
+    await prisma.product.delete({ where: { id: Number(req.params.id) } });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to delete product' });
+  }
+});
+
 export { router as adminRouter };

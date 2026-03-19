@@ -13,6 +13,9 @@ async function main() {
   await prisma.comment.deleteMany();
   await prisma.taskAssignee.deleteMany();
   await prisma.task.deleteMany();
+  await prisma.mvpItem.deleteMany();
+  await prisma.mvpMonth.deleteMany();
+  await prisma.product.deleteMany();
   await prisma.person.deleteMany();
   await prisma.direction.deleteMany();
 
@@ -127,6 +130,28 @@ async function main() {
       content: 'Жду скан подписанного акта от клиента, обещал прислать сегодня.',
     },
   });
+
+  // MVP: months, products, epics
+  const months: { id: number; yearMonth: string }[] = [];
+  for (let m = 1; m <= 12; m++) {
+    const ym = `2026-${String(m).padStart(2, '0')}`;
+    const mo = await prisma.mvpMonth.create({ data: { yearMonth: ym, sortOrder: m - 1 } });
+    months.push(mo);
+  }
+
+  const prodWeb = await prisma.product.create({ data: { name: 'Веб-сайт', directionId: dirDev.id } });
+  const prodAndroid = await prisma.product.create({ data: { name: 'Android', directionId: dirDev.id } });
+  const prodIos = await prisma.product.create({ data: { name: 'iOS', directionId: dirDev.id } });
+  const prodCrm = await prisma.product.create({ data: { name: 'CRM', directionId: dirBiz.id } });
+
+  await prisma.mvpItem.create({ data: { title: 'Редизайн главной', monthId: months[0].id, endMonthId: months[2].id, productId: prodWeb.id } });
+  await prisma.mvpItem.create({ data: { title: 'Авторизация', monthId: months[1].id, endMonthId: months[2].id, productId: prodAndroid.id } });
+  await prisma.mvpItem.create({ data: { title: 'Push-уведомления', monthId: months[2].id, endMonthId: months[4].id, productId: prodAndroid.id } });
+  await prisma.mvpItem.create({ data: { title: 'Авторизация iOS', monthId: months[1].id, endMonthId: months[3].id, productId: prodIos.id } });
+  await prisma.mvpItem.create({ data: { title: 'App Store релиз', monthId: months[3].id, endMonthId: months[4].id, productId: prodIos.id } });
+  await prisma.mvpItem.create({ data: { title: 'Интеграция с банком', monthId: months[2].id, endMonthId: months[3].id, productId: prodCrm.id } });
+  await prisma.mvpItem.create({ data: { title: 'Личный кабинет v2', monthId: months[4].id, endMonthId: months[6].id, productId: prodWeb.id } });
+  await prisma.mvpItem.create({ data: { title: 'Аналитика', monthId: months[5].id, productId: prodCrm.id } });
 
   console.log('Seed data created successfully!');
 }

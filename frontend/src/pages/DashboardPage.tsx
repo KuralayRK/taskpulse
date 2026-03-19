@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 import type { Task } from '../types';
 
-function daysUntil(deadline: string | null): number {
+function daysUntil(deadline: string | null | undefined): number {
   if (!deadline) return 999;
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -12,7 +12,7 @@ function daysUntil(deadline: string | null): number {
   return Math.ceil((dl.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function friendlyDeadline(deadline: string | null): string {
+function friendlyDeadline(deadline: string | null | undefined): string {
   if (!deadline) return 'без срока';
   const days = daysUntil(deadline);
   if (days < -1) return `${Math.abs(days)} дн. назад`;
